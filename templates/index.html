@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>在庫管理システム - ホーム</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            padding: 40px;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+        }
+        .menu {
+            margin-top: 30px;
+        }
+        .menu a {
+            display: inline-block;
+            background-color: #4CAF50;
+            color: white;
+            padding: 15px 25px;
+            margin: 10px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 18px;
+        }
+        .menu a:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>在庫管理システム</h1>
+    <p>ようこそ！下のメニューから操作を選んでください。</p>
+
+    <div class="menu">
+        <a href="/materials">📦 材料一覧</a>
+        <a href="/materials/add">➕ 材料登録</a>
+
+        <a href="/movements">📘 入出庫一覧</a>
+        <a href="/movements/add">➕ 入出庫登録</a>
+        <a href="/logout">🚪 ログアウト</a>
+    </div>
+
+</body>
+</html>

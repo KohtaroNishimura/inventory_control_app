@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>材料の削除確認</title>
+</head>
+<body>
+    <h1>材料の削除</h1>
+
+    <p>本当に以下の材料を削除してよろしいですか？</p>
+
+    <ul>
+        <li>ID：{{ material.id }}</li>
+        <li>材料名：{{ material.name }}</li>
+        <li>単位：{{ material.unit }}</li>
+        <li>カテゴリID：{{ material.category_id }}</li>
+    </ul>
+
+    <form action="/materials/{{ material.id }}/delete" method="POST">
+        <button type="submit">削除する</button>
+    </form>
+
+    <br>
+    <a href="/materials">← 材料一覧に戻る</a>
+
+</body>
+</html>

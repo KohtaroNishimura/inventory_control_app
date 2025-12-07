@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>入出庫登録</title>
+</head>
+<body>
+    <h1>入出庫登録</h1>
+
+    <form action="/movements/add" method="POST">
+
+        <label>店舗：</label>
+        <select name="store_id">
+            {% for s in stores %}
+                <option value="{{ s.id }}">{{ s.name }}</option>
+            {% endfor %}
+        </select>
+        <br><br>
+
+        <label>材料：</label>
+        <select name="material_id">
+            {% for m in materials %}
+                <option value="{{ m.id }}">{{ m.name }}</option>
+            {% endfor %}
+        </select>
+        <br><br>
+
+        <label>動きの種類：</label>
+        <select name="movement_type_id">
+            {% for mt in movement_types %}
+                <option value="{{ mt.id }}">{{ mt.name }}</option>
+            {% endfor %}
+        </select>
+        <br><br>
+
+        <label>数量：</label>
+        <input type="number" step="0.01" name="quantity" required><br><br>
+
+        <label>合計金額（入庫時）：</label>
+        <input type="number" step="0.01" name="total_price"><br><br>
+
+        <label>日時：</label>
+        <input type="datetime-local" name="datetime" required><br><br>
+
+        <label>メモ：</label><br>
+        <textarea name="memo" rows="3" cols="40"></textarea><br><br>
+
+        <button type="submit">登録する</button>
+    </form>
+
+    <br>
+    <a href="/movements">← 入出庫一覧へ</a>
+
+</body>
+</html>
