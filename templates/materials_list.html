@@ -17,6 +17,7 @@
             <th>単価</th>
             <th>最低在庫量</th>
             <th>生物？</th>
+            <th>メモ</th>
         </tr>
 
         {% for m in materials %}
@@ -27,6 +28,7 @@
             <td>{{ m.price_per_unit }}</td>
             <td>{{ m.minimum_stock }}</td>
             <td>{{ "はい" if m.perishable else "いいえ" }}</td>
+            <td>{{ m.memo }}</td>
         </tr>
         {% endfor %}
     </table>

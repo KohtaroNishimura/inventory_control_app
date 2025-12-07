@@ -50,6 +50,7 @@ def add_material():
     minimum_stock = request.form["minimum_stock"]
     perishable = request.form.get("perishable", 0)
     category_id = request.form.get("category_id")
+    memo = request.form.get("memo", "")
 
     if category_id:
         category_id = int(category_id)
@@ -59,10 +60,11 @@ def add_material():
     conn = get_db()
     conn.execute(
         """
-        INSERT INTO materials (name, unit, price_per_unit, minimum_stock, perishable, category_id)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO materials 
+        (name, unit, price_per_unit, minimum_stock, perishable, category_id, memo)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        (name, unit, price, minimum_stock, perishable, category_id),
+        (name, unit, price, minimum_stock, perishable, category_id, memo),
     )
     conn.commit()
     conn.close()
