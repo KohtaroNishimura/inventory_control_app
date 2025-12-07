@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>材料一覧</title>
+</head>
+<body>
+    <h1>材料一覧</h1>
+
+    <a href="/materials/add">＋ 材料を追加する</a>
+
+    <table border="1" cellpadding="8">
+        <tr>
+            <th>ID</th>
+            <th>材料名</th>
+            <th>単位</th>
+            <th>単価</th>
+            <th>最低在庫量</th>
+            <th>生物？</th>
+        </tr>
+
+        {% for m in materials %}
+        <tr>
+            <td>{{ m.id }}</td>
+            <td>{{ m.name }}</td>
+            <td>{{ m.unit }}</td>
+            <td>{{ m.price_per_unit }}</td>
+            <td>{{ m.minimum_stock }}</td>
+            <td>{{ "はい" if m.perishable else "いいえ" }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>

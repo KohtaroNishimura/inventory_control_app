@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>材料の追加</title>
+</head>
+<body>
+    <h1>材料の追加</h1>
+
+    <form action="/materials/add" method="POST">
+
+        <label>材料名：</label>
+        <input type="text" name="name" required><br><br>
+
+        <label>単位：</label>
+        <input type="text" name="unit"><br><br>
+
+        <label>単価（price_per_unit）：</label>
+        <input type="number" step="0.01" name="price"><br><br>
+
+        <label>最低在庫量（minimum_stock）：</label>
+        <input type="number" step="0.01" name="minimum_stock"><br><br>
+
+        <label>カテゴリ：</label>
+        <select name="category_id">
+            <option value="">選択してください</option>
+            {% for c in categories %}
+                <option value="{{ c.id }}">{{ c.category_name }}</option>
+            {% endfor %}
+        </select><br><br>
+
+        <label>生物系材料？：</label>
+        <input type="checkbox" name="perishable" value="1"> はい<br><br>
+
+        <button type="submit">登録する</button>
+    </form>
+
+    <br>
+    <a href="/materials">← 材料一覧に戻る</a>
+</body>
+</html>
