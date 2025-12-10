@@ -1,41 +1,43 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <title>材料一覧</title>
-</head>
-<body>
+{% extends "base.html" %}
+{% block title %}材料一覧{% endblock %}
+
+{% block content %}
+<div class="container">
     <h1>材料一覧</h1>
 
-    <a href="/materials/add">＋ 材料を追加する</a>
+    <a href="/materials/add" class="action-link">＋ 材料を追加する</a>
 
-    <table border="1" cellpadding="8">
-        <tr>
-            <th>ID</th>
-            <th>材料名</th>
-            <th>単位</th>
-            <th>単価</th>
-            <th>最低在庫量</th>
-            <th>生物？</th>
-            <th>メモ</th>
-            <th>編集</th>
-            <th>削除</th>
-        </tr>
-
-        {% for m in materials %}
-        {% set category = categories.get(m.category_id) if categories else None %}
-        <tr>
-            <td>{{ m.id }}</td>
-            <td>{{ m.name }}</td>
-            <td>{{ m.unit }}</td>
-            <td>{{ m.price_per_unit }}</td>
-            <td>{{ m.minimum_stock }}</td>
-            <td>{{ "はい" if category and category.is_perishable == 1 else "いいえ" }}</td>
-            <td>{{ m.memo }}</td>
-            <td><a href="/materials/{{ m.id }}/edit">編集</a></td>
-            <td><a href="/materials/{{ m.id }}/delete">削除</a></td>
-        </tr>
-        {% endfor %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>材料名</th>
+                <th>単位</th>
+                <th>単価</th>
+                <th>最低在庫量</th>
+                <th>生物？</th>
+                <th>メモ</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in materials %}
+            {% set category = categories.get(m.category_id) if categories else None %}
+            <tr>
+                <td>{{ m.id }}</td>
+                <td>{{ m.name }}</td>
+                <td>{{ m.unit }}</td>
+                <td>{{ m.price_per_unit }}</td>
+                <td>{{ m.minimum_stock }}</td>
+                <td>{{ "はい" if category and category.is_perishable == 1 else "いいえ" }}</td>
+                <td>{{ m.memo }}</td>
+                <td>
+                    <a href="/materials/{{ m.id }}/edit" class="table-link">編集</a> /
+                    <a href="/materials/{{ m.id }}/delete" class="table-link">削除</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
     </table>
-</body>
-</html>
+</div>
+{% endblock %}

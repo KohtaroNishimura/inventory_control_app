@@ -1,46 +1,46 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <title>入出庫一覧</title>
-</head>
-<body>
+{% extends "base.html" %}
+{% block title %}入出庫一覧{% endblock %}
+
+{% block content %}
+<div class="container">
     <h1>入出庫一覧</h1>
-    <a href="/movements/add">＋ 入出庫を登録</a>
-    <br><br>
+    <a href="/movements/add" class="action-link">＋ 入出庫を登録</a>
 
-    <table border="1" cellpadding="8">
-        <tr>
-            <th>ID</th>
-            <th>店舗</th>
-            <th>材料</th>
-            <th>動きの種類</th>
-            <th>数量</th>
-            <th>金額</th>
-            <th>日時</th>
-            <th>メモ</th>
-        </tr>
-
-        {% for mv in movements %}
-        <tr>
-            <td>{{ mv.id }}</td>
-            <td>{{ mv.store_name }}</td>
-            <td>{{ mv.material_name }}</td>
-            <td>{{ mv.movement_type_name }}</td>
-            <td>{{ mv.quantity }}</td>
-            <td>{{ mv.total_price }}</td>
-            <td>{{ mv.datetime }}</td>
-            <td>{{ mv.memo }}</td>
-            <td><a href="/movements/{{ mv.id }}/edit">編集</a></td>
-            <td>
-                <form action="/movements/{{ mv.id }}/delete" method="POST" 
-                      onsubmit="return confirm('削除しますか？');">
-                    <button type="submit">削除</button>
-                </form>
-            </td>
-        </tr>
-        {% endfor %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>店舗</th>
+                <th>材料</th>
+                <th>動きの種類</th>
+                <th>数量</th>
+                <th>金額</th>
+                <th>日時</th>
+                <th>メモ</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for mv in movements %}
+            <tr>
+                <td>{{ mv.id }}</td>
+                <td>{{ mv.store_name }}</td>
+                <td>{{ mv.material_name }}</td>
+                <td>{{ mv.movement_type_name }}</td>
+                <td>{{ mv.quantity }}</td>
+                <td>{{ mv.total_price }}</td>
+                <td>{{ mv.datetime }}</td>
+                <td>{{ mv.memo }}</td>
+                <td>
+                    <a href="/movements/{{ mv.id }}/edit" class="table-link">編集</a>
+                    <form action="/movements/{{ mv.id }}/delete" method="POST" class="inline-form"
+                          onsubmit="return confirm('削除しますか？');">
+                        <button type="submit" class="button-danger">削除</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
     </table>
-
-</body>
-</html>
+</div>
+{% endblock %}

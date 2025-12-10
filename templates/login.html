@@ -1,20 +1,24 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <title>ログイン</title>
-</head>
-<body>
+{% extends "base.html" %}
+{% block title %}ログイン{% endblock %}
+
+{% block content %}
+<div class="container">
     <h1>ログイン</h1>
 
     <form action="/login" method="POST">
-        <label>メールアドレス：</label><br>
-        <input type="email" name="email" required><br><br>
+        <div>
+            <label>メールアドレス：</label>
+            <input type="email" name="email" required>
+        </div>
 
-        <label>パスワード：</label><br>
-        <input type="password" name="password" required><br><br>
+        <div>
+            <label>パスワード：</label>
+            <input type="password" name="password" required>
+        </div>
 
-        <button type="submit">ログイン</button>
+        <div class="form-actions">
+            <button type="submit">ログイン</button>
+        </div>
     </form>
-</body>
-</html>
+</div>
+{% endblock %}

@@ -1,41 +1,51 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <title>材料の追加</title>
-</head>
-<body>
+{% extends "base.html" %}
+{% block title %}材料の追加{% endblock %}
+
+{% block content %}
+<div class="container">
     <h1>材料の追加</h1>
 
     <form action="/materials/add" method="POST">
+        <div>
+            <label>材料名：</label>
+            <input type="text" name="name" required>
+        </div>
 
-        <label>材料名：</label>
-        <input type="text" name="name" required><br><br>
+        <div>
+            <label>単位：</label>
+            <input type="text" name="unit">
+        </div>
 
-        <label>単位：</label>
-        <input type="text" name="unit"><br><br>
+        <div>
+            <label>単価（price_per_unit）：</label>
+            <input type="number" step="0.01" name="price">
+        </div>
 
-        <label>単価（price_per_unit）：</label>
-        <input type="number" step="0.01" name="price"><br><br>
+        <div>
+            <label>最低在庫量（minimum_stock）：</label>
+            <input type="number" step="0.01" name="minimum_stock">
+        </div>
 
-        <label>最低在庫量（minimum_stock）：</label>
-        <input type="number" step="0.01" name="minimum_stock"><br><br>
+        <div>
+            <label>カテゴリ：</label>
+            <select name="category_id">
+                <option value="">選択してください</option>
+                {% for c in categories %}
+                    <option value="{{ c.id }}">{{ c.category_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
 
-        <label>カテゴリ：</label>
-        <select name="category_id">
-            <option value="">選択してください</option>
-            {% for c in categories %}
-                <option value="{{ c.id }}">{{ c.category_name }}</option>
-            {% endfor %}
-        </select><br><br>
+        <div>
+            <label>メモ：</label>
+            <textarea name="memo" rows="4"></textarea>
+        </div>
 
-        <label>メモ：</label>
-        <textarea name="memo"></textarea><br><br>
-
-        <button type="submit">登録する</button>
+        <div class="form-actions">
+            <button type="submit">登録する</button>
+        </div>
     </form>
 
-    <br>
-    <a href="/materials">← 材料一覧に戻る</a>
-</body>
-</html>
+    <a href="/materials" class="back-link">材料一覧に戻る</a>
+</div>
+{% endblock %}

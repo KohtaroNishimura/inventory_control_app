@@ -1,12 +1,9 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <title>材料の削除確認</title>
-</head>
-<body>
-    <h1>材料の削除</h1>
+{% extends "base.html" %}
+{% block title %}材料の削除確認{% endblock %}
 
+{% block content %}
+<div class="container">
+    <h1>材料の削除</h1>
     <p>本当に以下の材料を削除してよろしいですか？</p>
 
     <ul>
@@ -17,11 +14,11 @@
     </ul>
 
     <form action="/materials/{{ material.id }}/delete" method="POST">
-        <button type="submit">削除する</button>
+        <div class="form-actions">
+            <button type="submit" class="button-danger">削除する</button>
+        </div>
     </form>
 
-    <br>
-    <a href="/materials">← 材料一覧に戻る</a>
-
-</body>
-</html>
+    <a href="/materials" class="back-link">材料一覧に戻る</a>
+</div>
+{% endblock %}
