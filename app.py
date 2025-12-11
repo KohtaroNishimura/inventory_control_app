@@ -100,6 +100,25 @@ def materials_list():
     category_columns = conn.execute("PRAGMA table_info(material_categories)").fetchall()
     has_category_perishable = any(col["name"] == "is_perishable" for col in category_columns)
 
+    stock_rows = conn.execute(
+        """
+        SELECT im.material_id,
+               COALESCE(
+                   SUM(
+                       CASE
+                           WHEN mt.name IN ('出庫', '廃棄') THEN -im.quantity
+                           ELSE im.quantity
+                       END
+                   ),
+                   0
+               ) AS current_stock
+        FROM inventory_movements im
+        JOIN movement_types mt ON im.movement_type_id = mt.id
+        GROUP BY im.material_id
+        """
+    ).fetchall()
+    stock_levels = {row["material_id"]: row["current_stock"] for row in stock_rows}
+
     category_select = "id, category_name"
     if has_category_perishable:
         category_select += ", is_perishable"
@@ -123,6 +142,7 @@ def materials_list():
         "materials_list.html",
         materials=materials,
         categories=categories,
+        stock_levels=stock_levels,
     )
 
 

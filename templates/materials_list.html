@@ -15,6 +15,7 @@
                 <th>単位</th>
                 <th>単価</th>
                 <th>最低在庫量</th>
+                <th>現在在庫</th>
                 <th>生物？</th>
                 <th>メモ</th>
                 <th>操作</th>
@@ -29,6 +30,7 @@
                 <td>{{ m.unit }}</td>
                 <td>{{ m.price_per_unit }}</td>
                 <td>{{ m.minimum_stock }}</td>
+                <td>{{ stock_levels.get(m.id, 0) }}</td>
                 <td>{{ "はい" if category and category.is_perishable == 1 else "いいえ" }}</td>
                 <td>{{ m.memo }}</td>
                 <td>
@@ -39,5 +41,7 @@
             {% endfor %}
         </tbody>
     </table>
+
+    <a href="/" class="back-link">← TOPに戻る</a>
 </div>
 {% endblock %}
