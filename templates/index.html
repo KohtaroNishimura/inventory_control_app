@@ -2,17 +2,42 @@
 {% block title %}在庫管理システム - ホーム{% endblock %}
 
 {% block content %}
-<div class="container">
-    <h1>在庫管理システム</h1>
-    <p>ようこそ！下のメニューから操作を選んでください。</p>
+<div class="space-y-6">
+    <div class="rounded-3xl bg-white px-6 py-8 shadow-xl ring-1 ring-slate-100 sm:px-10">
+        <div class="space-y-3 text-center">
+            <p class="text-sm font-semibold uppercase tracking-wide text-brand">在庫管理システム</p>
+            <h1 class="text-3xl font-bold text-slate-900 sm:text-4xl">ようこそ！</h1>
+            <p class="text-base text-slate-600">日々の材料状況をスマホからでも素早くチェックできます。</p>
+        </div>
 
-    <div class="menu">
-        <a href="/materials">📦 材料一覧</a>
-        <a href="/materials/add">➕ 材料登録</a>
+        <div class="mt-8 grid gap-4 sm:grid-cols-2">
+            <a href="/materials" class="flex flex-col rounded-2xl border border-slate-100 bg-gradient-to-br from-brand to-brandDark px-5 py-4 text-white shadow-lg transition hover:shadow-xl">
+                <span class="text-2xl">📦</span>
+                <span class="text-lg font-semibold">材料一覧</span>
+                <span class="text-sm text-white/80">各店舗の在庫と最低量を確認</span>
+            </a>
+            <a href="/materials/add" class="flex flex-col rounded-2xl border border-slate-100 bg-white px-5 py-4 text-slate-900 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl">
+                <span class="text-2xl">➕</span>
+                <span class="text-lg font-semibold">材料登録</span>
+                <span class="text-sm text-slate-500">新しい材料や最低量を登録</span>
+            </a>
+            <a href="/movements" class="flex flex-col rounded-2xl border border-slate-100 bg-white px-5 py-4 text-slate-900 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl">
+                <span class="text-2xl">📘</span>
+                <span class="text-lg font-semibold">入出庫一覧</span>
+                <span class="text-sm text-slate-500">直近の動きを時系列で表示</span>
+            </a>
+            <a href="/movements/add" class="flex flex-col rounded-2xl border border-dashed border-brand/40 bg-brand/5 px-5 py-4 text-brandDark shadow-lg transition hover:border-brand hover:bg-white hover:text-brand">
+                <span class="text-2xl">➕</span>
+                <span class="text-lg font-semibold">入出庫登録</span>
+                <span class="text-sm text-brandDark/80">納品や廃棄をすぐ記録</span>
+            </a>
+        </div>
 
-        <a href="/movements">📘 入出庫一覧</a>
-        <a href="/movements/add">➕ 入出庫登録</a>
-        <a href="/logout">🚪 ログアウト</a>
+        <div class="mt-8 text-center">
+            <a href="/logout" class="inline-flex items-center justify-center rounded-full border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900">
+                🚪 ログアウト
+            </a>
+        </div>
     </div>
 </div>
 {% endblock %}

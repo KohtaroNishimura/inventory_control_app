@@ -2,23 +2,44 @@
 {% block title %}材料の削除確認{% endblock %}
 
 {% block content %}
-<div class="container">
-    <h1>材料の削除</h1>
-    <p>本当に以下の材料を削除してよろしいですか？</p>
-
-    <ul>
-        <li>ID：{{ material.id }}</li>
-        <li>材料名：{{ material.name }}</li>
-        <li>単位：{{ material.unit }}</li>
-        <li>カテゴリID：{{ material.category_id }}</li>
-    </ul>
-
-    <form action="/materials/{{ material.id }}/delete" method="POST">
-        <div class="form-actions">
-            <button type="submit" class="button-danger">削除する</button>
+<div class="mx-auto max-w-2xl space-y-6">
+    <div class="rounded-3xl bg-white px-6 py-8 shadow-lg ring-1 ring-slate-100 sm:px-10">
+        <div class="space-y-2 text-center">
+            <p class="text-sm font-semibold text-rose-500">削除確認</p>
+            <h1 class="text-3xl font-bold text-slate-900">本当に削除しますか？</h1>
+            <p class="text-sm text-slate-500">削除後は元に戻せません。</p>
         </div>
-    </form>
 
-    <a href="/materials" class="back-link">材料一覧に戻る</a>
+        <dl class="mt-8 divide-y divide-slate-100 rounded-2xl border border-slate-100 bg-slate-50/50">
+            <div class="grid grid-cols-3 gap-3 px-4 py-3 text-sm sm:px-6">
+                <dt class="font-semibold text-slate-600">ID</dt>
+                <dd class="col-span-2 text-slate-900">{{ material.id }}</dd>
+            </div>
+            <div class="grid grid-cols-3 gap-3 px-4 py-3 text-sm sm:px-6">
+                <dt class="font-semibold text-slate-600">材料名</dt>
+                <dd class="col-span-2 text-slate-900">{{ material.name }}</dd>
+            </div>
+            <div class="grid grid-cols-3 gap-3 px-4 py-3 text-sm sm:px-6">
+                <dt class="font-semibold text-slate-600">単位</dt>
+                <dd class="col-span-2 text-slate-900">{{ material.unit }}</dd>
+            </div>
+            <div class="grid grid-cols-3 gap-3 px-4 py-3 text-sm sm:px-6">
+                <dt class="font-semibold text-slate-600">カテゴリID</dt>
+                <dd class="col-span-2 text-slate-900">{{ material.category_id }}</dd>
+            </div>
+        </dl>
+
+        <form action="/materials/{{ material.id }}/delete" method="POST" class="mt-8">
+            <button type="submit" class="inline-flex w-full items-center justify-center rounded-2xl bg-rose-500 px-6 py-3 text-base font-semibold text-white shadow-lg transition hover:bg-rose-600 focus-visible:outline focus-visible:ring-2 focus-visible:ring-rose-400">
+                削除する
+            </button>
+        </form>
+    </div>
+
+    <div class="text-center">
+        <a href="/materials" class="inline-flex items-center justify-center rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900">
+            材料一覧に戻る
+        </a>
+    </div>
 </div>
 {% endblock %}

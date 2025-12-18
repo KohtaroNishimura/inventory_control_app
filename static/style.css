@@ -238,14 +238,6 @@ button:hover {
     line-height: 1.3;
 }
 
-.stock-minimum-label {
-    display: block;
-    font-size: 12px;
-    font-weight: 400;
-    margin-top: 4px;
-    color: rgba(35, 48, 63, 0.85);
-}
-
 .stock-low {
     background: #ffe0e0 !important;
     color: #b3261e;

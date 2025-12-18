@@ -2,45 +2,67 @@
 {% block title %}入出庫一覧{% endblock %}
 
 {% block content %}
-<div class="container">
-    <h1>入出庫一覧</h1>
-    <a href="/movements/add" class="action-link">＋ 入出庫を登録</a>
+<div class="space-y-5">
+    <div class="rounded-3xl bg-white px-5 py-6 shadow-lg ring-1 ring-slate-100 sm:px-8">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-wide text-brand">Movement Log</p>
+                <h1 class="text-2xl font-bold text-slate-900">入出庫一覧</h1>
+                <p class="text-sm text-slate-500">直近の入荷・出荷・廃棄をスマホでも確認できます。</p>
+            </div>
+            <a href="/movements/add" class="inline-flex items-center justify-center rounded-2xl bg-brand px-5 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-brandDark focus-visible:outline focus-visible:ring-2 focus-visible:ring-brand/50">
+                ＋ 入出庫を登録
+            </a>
+        </div>
+    </div>
 
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>店舗</th>
-                <th>材料</th>
-                <th>動きの種類</th>
-                <th>数量</th>
-                <th>日時</th>
-                <th>メモ</th>
-                <th>操作</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for mv in movements %}
-            <tr>
-                <td>{{ mv.id }}</td>
-                <td>{{ mv.store_name }}</td>
-                <td>{{ mv.material_name }}</td>
-                <td>{{ mv.movement_type_name }}</td>
-                <td>{{ mv.quantity }}</td>
-                <td>{{ mv.datetime }}</td>
-                <td>{{ mv.memo }}</td>
-                <td>
-                    <a href="/movements/{{ mv.id }}/edit" class="table-link">編集</a>
-                    <form action="/movements/{{ mv.id }}/delete" method="POST" class="inline-form"
-                          onsubmit="return confirm('削除しますか？');">
-                        <button type="submit" class="button-danger">削除</button>
-                    </form>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div class="rounded-3xl bg-white px-4 py-4 shadow-lg ring-1 ring-slate-100 sm:px-6">
+        <div class="-mx-4 overflow-x-auto sm:mx-0">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                    <tr>
+                        <th class="px-4 py-3 text-left font-semibold">ID</th>
+                        <th class="px-4 py-3 text-left font-semibold">店舗</th>
+                        <th class="px-4 py-3 text-left font-semibold">材料</th>
+                        <th class="px-4 py-3 text-left font-semibold">動きの種類</th>
+                        <th class="px-4 py-3 text-left font-semibold">数量</th>
+                        <th class="px-4 py-3 text-left font-semibold">日時</th>
+                        <th class="px-4 py-3 text-left font-semibold">メモ</th>
+                        <th class="px-4 py-3 text-left font-semibold">操作</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for mv in movements %}
+                    <tr class="hover:bg-slate-50">
+                        <td class="whitespace-nowrap px-4 py-3 font-semibold text-slate-600">{{ mv.id }}</td>
+                        <td class="whitespace-nowrap px-4 py-3 text-slate-900">{{ mv.store_name }}</td>
+                        <td class="whitespace-nowrap px-4 py-3 text-slate-600">{{ mv.material_name }}</td>
+                        <td class="whitespace-nowrap px-4 py-3 text-slate-600">{{ mv.movement_type_name }}</td>
+                        <td class="whitespace-nowrap px-4 py-3 text-slate-600">{{ mv.quantity }}</td>
+                        <td class="whitespace-nowrap px-4 py-3 text-slate-600">{{ mv.datetime }}</td>
+                        <td class="max-w-xs px-4 py-3 text-slate-600">
+                            <p class="line-clamp-2 text-sm">{{ mv.memo }}</p>
+                        </td>
+                        <td class="px-4 py-3">
+                            <div class="flex flex-col gap-2 sm:flex-row">
+                                <a href="/movements/{{ mv.id }}/edit" class="text-brand hover:underline">編集</a>
+                                <form action="/movements/{{ mv.id }}/delete" method="POST" class="inline-flex"
+                                      onsubmit="return confirm('削除しますか？');">
+                                    <button type="submit" class="text-rose-500 hover:underline">削除</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
 
-    <a href="/" class="back-link">← TOPに戻る</a>
+    <div class="text-center">
+        <a href="/" class="inline-flex items-center justify-center rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900">
+            ← TOPに戻る
+        </a>
+    </div>
 </div>
 {% endblock %}

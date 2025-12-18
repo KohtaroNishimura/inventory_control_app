@@ -2,72 +2,86 @@
 {% block title %}材料の編集{% endblock %}
 
 {% block content %}
-<div class="container">
-    <h1>材料の編集</h1>
-
-    <form action="/materials/{{ material.id }}/edit" method="POST">
-        <div>
-            <label>材料名：</label>
-            <input type="text" name="name" value="{{ material.name }}" required>
+<div class="space-y-6">
+    <div class="rounded-3xl bg-white px-6 py-8 shadow-lg ring-1 ring-slate-100 sm:px-10">
+        <div class="space-y-1 text-center sm:text-left">
+            <p class="text-sm font-semibold text-brand">材料ID：{{ material.id }}</p>
+            <h1 class="text-3xl font-bold text-slate-900">材料の編集</h1>
+            <p class="text-sm text-slate-500">データを更新すると在庫状況に即時反映されます。</p>
         </div>
 
-        <div>
-            <label>単位：</label>
-            <input type="text" name="unit" value="{{ material.unit }}">
-        </div>
-
-        <div>
-            <label>単価：</label>
-            <input type="number" step="0.01" name="price" value="{{ material.price_per_unit }}">
-        </div>
-
-        <div>
-            <label>全店舗合計の最低在庫量：</label>
-            <input type="number" step="0.01" name="minimum_stock" value="{{ material.minimum_stock }}">
-        </div>
-
-        {% if stores %}
-        <div class="store-minimums-group">
-            <label>各店舗の最低在庫量：</label>
-            <div class="store-minimums-grid">
-                {% for store in stores %}
-                <div class="store-minimum-input">
-                    <span class="store-minimum-label">{{ store.name }}</span>
-                    <input
-                        type="number"
-                        step="0.01"
-                        name="minimum_stock_store_{{ store.id }}"
-                        value="{{ store_minimums.get(store.id, '') }}"
-                    >
-                </div>
-                {% endfor %}
+        <form action="/materials/{{ material.id }}/edit" method="POST" class="mt-8 space-y-5">
+            <div class="space-y-2">
+                <label class="text-sm font-semibold text-slate-700">材料名</label>
+                <input type="text" name="name" value="{{ material.name }}" required class="rounded-2xl border-slate-300 text-base focus:border-brand focus:ring-brand">
             </div>
-            <p class="field-note">未入力の店舗は「全店舗合計の最低在庫量」を参照します。</p>
-        </div>
-        {% endif %}
 
-        <div>
-            <label>カテゴリ：</label>
-            <select name="category_id">
-                <option value="">未選択</option>
-                {% for c in categories %}
-                    <option value="{{ c.id }}" {% if material.category_id == c.id %}selected{% endif %}>
-                        {{ c.category_name }}
-                    </option>
-                {% endfor %}
-            </select>
-        </div>
+            <div class="grid gap-5 sm:grid-cols-2">
+                <div class="space-y-2">
+                    <label class="text-sm font-semibold text-slate-700">単位</label>
+                    <input type="text" name="unit" value="{{ material.unit }}" class="rounded-2xl border-slate-300 text-base focus:border-brand focus:ring-brand">
+                </div>
+                <div class="space-y-2">
+                    <label class="text-sm font-semibold text-slate-700">単価</label>
+                    <input type="number" step="0.01" name="price" value="{{ material.price_per_unit }}" class="rounded-2xl border-slate-300 text-base focus:border-brand focus:ring-brand">
+                </div>
+            </div>
 
-        <div>
-            <label>メモ：</label>
-            <textarea name="memo" rows="4">{{ material.memo }}</textarea>
-        </div>
+            <div class="space-y-2">
+                <label class="text-sm font-semibold text-slate-700">全店舗合計の最低在庫量</label>
+                <input type="number" step="0.01" name="minimum_stock" value="{{ material.minimum_stock }}" class="rounded-2xl border-slate-300 text-base focus:border-brand focus:ring-brand">
+            </div>
 
-        <div class="form-actions">
-            <button type="submit">更新する</button>
-        </div>
-    </form>
+            {% if stores %}
+            <div class="space-y-3 rounded-2xl border border-slate-100 bg-slate-50/50 p-4 sm:p-5">
+                <div class="flex items-center justify-between gap-3">
+                    <p class="text-sm font-semibold text-slate-800">各店舗の最低在庫量</p>
+                    <span class="text-xs text-slate-500">未入力は全体値を使用</span>
+                </div>
+                <div class="grid gap-4 sm:grid-cols-2">
+                    {% for store in stores %}
+                    <div class="rounded-2xl border border-slate-100 bg-white/60 p-3 shadow-sm">
+                        <p class="text-sm font-semibold text-slate-700">{{ store.name }}</p>
+                        <input type="number"
+                               step="0.01"
+                               name="minimum_stock_store_{{ store.id }}"
+                               value="{{ store_minimums.get(store.id, '') }}"
+                               class="mt-2 rounded-xl border-slate-300 text-base focus:border-brand focus:ring-brand">
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
 
-    <a href="/materials" class="back-link">材料一覧に戻る</a>
+            <div class="space-y-2">
+                <label class="text-sm font-semibold text-slate-700">カテゴリ</label>
+                <select name="category_id" class="rounded-2xl border-slate-300 text-base focus:border-brand focus:ring-brand">
+                    <option value="">未選択</option>
+                    {% for c in categories %}
+                        <option value="{{ c.id }}" {% if material.category_id == c.id %}selected{% endif %}>
+                            {{ c.category_name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="space-y-2">
+                <label class="text-sm font-semibold text-slate-700">メモ</label>
+                <textarea name="memo" rows="4" class="rounded-2xl border-slate-300 text-base focus:border-brand focus:ring-brand">{{ material.memo }}</textarea>
+            </div>
+
+            <div class="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <button type="submit" class="inline-flex items-center justify-center rounded-2xl bg-brand px-6 py-3 text-base font-semibold text-white shadow-lg transition hover:bg-brandDark focus-visible:outline focus-visible:ring-2 focus-visible:ring-brand/50">
+                    更新する
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div class="text-center">
+        <a href="/materials" class="inline-flex items-center justify-center rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900">
+            材料一覧へ戻る
+        </a>
+    </div>
 </div>
 {% endblock %}

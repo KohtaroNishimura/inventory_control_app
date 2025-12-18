@@ -2,10 +2,26 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}在庫管理システム{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography,line-clamp"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: '#0f766e',
+                        brandDark: '#115e59',
+                        brandAccent: '#f97316'
+                    }
+                }
+            }
+        }
+    </script>
 </head>
-<body>
-    {% block content %}{% endblock %}
+<body class="min-h-screen bg-slate-100 text-slate-800 antialiased">
+    <main class="mx-auto max-w-6xl px-4 py-8 lg:px-8">
+        {% block content %}{% endblock %}
+    </main>
 </body>
 </html>
