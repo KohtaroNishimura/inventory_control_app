@@ -22,9 +22,24 @@
         </div>
 
         <div>
-            <label>最低在庫量（minimum_stock）：</label>
+            <label>全店舗合計の最低在庫量：</label>
             <input type="number" step="0.01" name="minimum_stock">
         </div>
+
+        {% if stores %}
+        <div class="store-minimums-group">
+            <label>各店舗の最低在庫量：</label>
+            <div class="store-minimums-grid">
+                {% for store in stores %}
+                <div class="store-minimum-input">
+                    <span class="store-minimum-label">{{ store.name }}</span>
+                    <input type="number" step="0.01" name="minimum_stock_store_{{ store.id }}">
+                </div>
+                {% endfor %}
+            </div>
+            <p class="field-note">未入力の店舗は「全店舗合計の最低在庫量」を参照します。</p>
+        </div>
+        {% endif %}
 
         <div>
             <label>カテゴリ：</label>

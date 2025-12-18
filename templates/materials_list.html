@@ -25,7 +25,11 @@
                 <th>材料名</th>
                 <th>単位</th>
                 <th>単価</th>
-                <th>最低在庫量</th>
+                {% if selected_store_id is none %}
+                    <th>最低在庫量（全体）</th>
+                {% else %}
+                    <th>最低在庫量（{{ selected_store.name }}）</th>
+                {% endif %}
                 {% if selected_store_id is none %}
                     <th>全店舗合計</th>
                     {% for store in stores %}
@@ -47,14 +51,46 @@
                 <td>{{ m.name }}</td>
                 <td>{{ m.unit }}</td>
                 <td>{{ m.price_per_unit }}</td>
-                <td>{{ m.minimum_stock }}</td>
+                <td>
+                    {% if selected_store_id is none %}
+                        {% if m.minimum_stock is not none %}
+                            {{ m.minimum_stock }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    {% else %}
+                        {% set store_minimum = per_store_minimums.get(m.id, {}).get(selected_store_id) %}
+                        {% if store_minimum is not none %}
+                            {{ store_minimum }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    {% endif %}
+                </td>
                 {% if selected_store_id is none %}
-                    <td>{{ stock_levels.get(m.id, 0) }}</td>
+                    {% set total_status = stock_statuses.get(m.id, {}).get('total', 'stock-unknown') %}
+                    <td class="stock-cell {{ total_status }}">
+                        {{ stock_levels.get(m.id, 0) }}
+                        <small class="stock-minimum-label">
+                            最低：
+                            {% if m.minimum_stock is not none %}
+                                {{ m.minimum_stock }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </small>
+                    </td>
                     {% for store in stores %}
-                        <td>{{ per_store_stock.get(m.id, {}).get(store.id, 0) }}</td>
+                        {% set status = stock_statuses.get(m.id, {}).get('stores', {}).get(store.id, 'stock-unknown') %}
+                        <td class="stock-cell {{ status }}">
+                            {{ per_store_stock.get(m.id, {}).get(store.id, 0) }}
+                        </td>
                     {% endfor %}
                 {% else %}
-                    <td>{{ per_store_stock.get(m.id, {}).get(selected_store_id, 0) }}</td>
+                    {% set store_status = stock_statuses.get(m.id, {}).get('stores', {}).get(selected_store_id, 'stock-unknown') %}
+                    <td class="stock-cell {{ store_status }}">
+                        {{ per_store_stock.get(m.id, {}).get(selected_store_id, 0) }}
+                    </td>
                 {% endif %}
                 <td>{{ "はい" if category and category.is_perishable == 1 else "いいえ" }}</td>
                 <td>{{ m.memo }}</td>
