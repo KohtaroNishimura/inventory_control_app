@@ -204,3 +204,31 @@ button:hover {
     color: var(--primary-dark);
     text-decoration: underline;
 }
+
+.store-filter {
+    margin-top: 24px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.filter-link {
+    padding: 8px 16px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    text-decoration: none;
+    color: var(--primary-dark);
+    font-weight: 600;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.filter-link:hover {
+    background: var(--primary);
+    color: #fff;
+}
+
+.filter-link.active {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+}

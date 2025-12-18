@@ -14,7 +14,6 @@
                 <th>材料</th>
                 <th>動きの種類</th>
                 <th>数量</th>
-                <th>金額</th>
                 <th>日時</th>
                 <th>メモ</th>
                 <th>操作</th>
@@ -28,7 +27,6 @@
                 <td>{{ mv.material_name }}</td>
                 <td>{{ mv.movement_type_name }}</td>
                 <td>{{ mv.quantity }}</td>
-                <td>{{ mv.total_price }}</td>
                 <td>{{ mv.datetime }}</td>
                 <td>{{ mv.memo }}</td>
                 <td>
@@ -42,5 +40,7 @@
             {% endfor %}
         </tbody>
     </table>
+
+    <a href="/" class="back-link">← TOPに戻る</a>
 </div>
 {% endblock %}

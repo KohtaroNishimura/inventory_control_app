@@ -8,15 +8,18 @@ from flask_login import (
     current_user,
 )
 from werkzeug.security import check_password_hash
+from pathlib import Path
 import sqlite3
 
-app = Flask(__name__)
+app = Flask(__name__, instance_relative_config=True)
 app.secret_key = "change-this-secret-key"
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login_form"
 
-DATABASE = "inventory_control.db"
+Path(app.instance_path).mkdir(parents=True, exist_ok=True)
+DATABASE = Path(app.instance_path) / "inventory_control.db"
+app.config["DATABASE"] = DATABASE
 
 
 class User(UserMixin):
@@ -84,7 +87,7 @@ def logout():
 # DB接続用の関数（毎回これでDBを開く）
 # ---------------------------------------------
 def get_db():
-    conn = sqlite3.connect(DATABASE)
+    conn = sqlite3.connect(app.config["DATABASE"])
     conn.row_factory = sqlite3.Row  # ← 辞書のように列名でアクセスできる
     return conn
 
@@ -97,12 +100,29 @@ def get_db():
 def materials_list():
     conn = get_db()
     materials = conn.execute("SELECT * FROM materials").fetchall()
+    stores = conn.execute("SELECT id, name FROM stores").fetchall()
     category_columns = conn.execute("PRAGMA table_info(material_categories)").fetchall()
     has_category_perishable = any(col["name"] == "is_perishable" for col in category_columns)
+
+    store_param = request.args.get("store_id", "all")
+    selected_store_id = None
+    selected_store = None
+    if store_param != "all":
+        try:
+            store_id_int = int(store_param)
+        except ValueError:
+            conn.close()
+            return redirect("/materials")
+        selected_store = next((store for store in stores if store["id"] == store_id_int), None)
+        if not selected_store:
+            conn.close()
+            return redirect("/materials")
+        selected_store_id = store_id_int
 
     stock_rows = conn.execute(
         """
         SELECT im.material_id,
+               im.store_id,
                COALESCE(
                    SUM(
                        CASE
@@ -111,13 +131,22 @@ def materials_list():
                        END
                    ),
                    0
-               ) AS current_stock
+               ) AS store_stock
         FROM inventory_movements im
         JOIN movement_types mt ON im.movement_type_id = mt.id
-        GROUP BY im.material_id
+        GROUP BY im.material_id, im.store_id
         """
     ).fetchall()
-    stock_levels = {row["material_id"]: row["current_stock"] for row in stock_rows}
+    stock_levels = {}
+    per_store_stock = {}
+    for row in stock_rows:
+        material_id = row["material_id"]
+        store_id = row["store_id"]
+        qty = row["store_stock"]
+        stock_levels[material_id] = stock_levels.get(material_id, 0) + qty
+        if material_id not in per_store_stock:
+            per_store_stock[material_id] = {}
+        per_store_stock[material_id][store_id] = qty
 
     category_select = "id, category_name"
     if has_category_perishable:
@@ -143,6 +172,10 @@ def materials_list():
         materials=materials,
         categories=categories,
         stock_levels=stock_levels,
+        per_store_stock=per_store_stock,
+        stores=stores,
+        selected_store_id=selected_store_id,
+        selected_store=selected_store,
     )
 
 
@@ -290,7 +323,7 @@ def movement_list():
     conn = get_db()
     movements = conn.execute(
         """
-        SELECT im.id, im.quantity, im.total_price, im.datetime, im.memo,
+        SELECT im.id, im.quantity, im.datetime, im.memo,
                m.name AS material_name,
                mt.name AS movement_type_name,
                s.name AS store_name
@@ -337,7 +370,6 @@ def movement_add():
     material_id = request.form.get("material_id")
     movement_type_id = request.form.get("movement_type_id")
     quantity = request.form.get("quantity")
-    total_price = request.form.get("total_price")
     memo = request.form.get("memo", "")
     datetime_value = request.form.get("datetime")
 
@@ -348,15 +380,14 @@ def movement_add():
     conn.execute(
         """
         INSERT INTO inventory_movements 
-        (store_id, material_id, movement_type_id, quantity, total_price, datetime, memo)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        (store_id, material_id, movement_type_id, quantity, datetime, memo)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
         (
             store_id,
             material_id,
             movement_type_id,
             quantity,
-            total_price,
             datetime_value,
             memo,
         ),
@@ -408,7 +439,6 @@ def edit_movement(movement_id):
     material_id = request.form["material_id"]
     movement_type_id = request.form["movement_type_id"]
     quantity = request.form["quantity"]
-    total_price = request.form.get("total_price", None)
     datetime_value = request.form["datetime"]
     memo = request.form.get("memo", "")
 
@@ -417,7 +447,7 @@ def edit_movement(movement_id):
         """
         UPDATE inventory_movements
         SET store_id = ?, material_id = ?, movement_type_id = ?, 
-            quantity = ?, total_price = ?, datetime = ?, memo = ?
+            quantity = ?, datetime = ?, memo = ?
         WHERE id = ?
         """,
         (
@@ -425,7 +455,6 @@ def edit_movement(movement_id):
             material_id,
             movement_type_id,
             quantity,
-            total_price,
             datetime_value,
             memo,
             movement_id,

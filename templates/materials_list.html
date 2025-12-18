@@ -7,6 +7,17 @@
 
     <a href="/materials/add" class="action-link">＋ 材料を追加する</a>
 
+    <div class="store-filter">
+        <a href="/materials?store_id=all" class="filter-link {% if selected_store_id is none %}active{% endif %}">
+            全店舗
+        </a>
+        {% for store in stores %}
+        <a href="/materials?store_id={{ store.id }}" class="filter-link {% if selected_store_id == store.id %}active{% endif %}">
+            {{ store.name }}
+        </a>
+        {% endfor %}
+    </div>
+
     <table class="data-table">
         <thead>
             <tr>
@@ -15,7 +26,14 @@
                 <th>単位</th>
                 <th>単価</th>
                 <th>最低在庫量</th>
-                <th>現在在庫</th>
+                {% if selected_store_id is none %}
+                    <th>全店舗合計</th>
+                    {% for store in stores %}
+                        <th>{{ store.name }}</th>
+                    {% endfor %}
+                {% else %}
+                    <th>{{ selected_store.name }} 在庫</th>
+                {% endif %}
                 <th>生物？</th>
                 <th>メモ</th>
                 <th>操作</th>
@@ -30,7 +48,14 @@
                 <td>{{ m.unit }}</td>
                 <td>{{ m.price_per_unit }}</td>
                 <td>{{ m.minimum_stock }}</td>
-                <td>{{ stock_levels.get(m.id, 0) }}</td>
+                {% if selected_store_id is none %}
+                    <td>{{ stock_levels.get(m.id, 0) }}</td>
+                    {% for store in stores %}
+                        <td>{{ per_store_stock.get(m.id, {}).get(store.id, 0) }}</td>
+                    {% endfor %}
+                {% else %}
+                    <td>{{ per_store_stock.get(m.id, {}).get(selected_store_id, 0) }}</td>
+                {% endif %}
                 <td>{{ "はい" if category and category.is_perishable == 1 else "いいえ" }}</td>
                 <td>{{ m.memo }}</td>
                 <td>
