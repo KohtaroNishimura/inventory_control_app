@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}棚卸一覧{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="rounded-3xl bg-white px-6 py-8 shadow-xl ring-1 ring-slate-100 sm:px-10">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div class="space-y-1">
+                <p class="text-sm font-semibold uppercase tracking-wide text-brand">棚卸</p>
+                <h1 class="text-2xl font-bold text-slate-900 sm:text-3xl">棚卸一覧</h1>
+                {% if selected_store %}
+                <p class="text-sm text-slate-600">店舗: {{ selected_store.name }}</p>
+                {% endif %}
+            </div>
+
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                {% if is_admin %}
+                <form method="get" action="/stocktakes" class="flex items-center gap-2">
+                    <label class="text-sm font-semibold text-slate-700" for="store_id">店舗</label>
+                    <select id="store_id" name="store_id" class="rounded-xl border-slate-200 bg-white text-sm" onchange="this.form.submit()">
+                        {% for store in stores %}
+                        <option value="{{ store.id }}" {% if store.id == selected_store_id %}selected{% endif %}>{{ store.name }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+                {% endif %}
+
+                <a href="/stocktakes/add?store_id={{ selected_store_id }}" class="inline-flex items-center justify-center rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brandDark">
+                    ➕ 棚卸作成
+                </a>
+            </div>
+        </div>
+
+        <div class="mt-8 overflow-hidden rounded-2xl border border-slate-100">
+            <table class="min-w-full divide-y divide-slate-100 bg-white">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">棚卸日</th>
+                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">状態</th>
+                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">メモ</th>
+                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">操作</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for session in sessions %}
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-5 py-3 text-sm font-semibold text-slate-900">
+                            <a href="/stocktakes/{{ session.id }}" class="underline decoration-slate-200 underline-offset-4 hover:decoration-brand">
+                                {{ session.count_date }}
+                            </a>
+                        </td>
+                        <td class="px-5 py-3 text-sm text-slate-700">
+                            {% if session.status == 'confirmed' %}
+                            <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">確定</span>
+                            {% else %}
+                            <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">下書き</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-5 py-3 text-sm text-slate-600">
+                            {% if session.notes %}{{ session.notes }}{% else %}—{% endif %}
+                        </td>
+                        <td class="px-5 py-3 text-sm">
+                            {% if session.status != 'confirmed' %}
+                            <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                <a href="/stocktakes/{{ session.id }}/edit" class="text-brand hover:underline">編集</a>
+                                <form method="post" action="/stocktakes/{{ session.id }}/delete" onsubmit="return confirm('削除しますか？');">
+                                    <button type="submit" class="text-rose-500 hover:underline">削除</button>
+                                </form>
+                            </div>
+                            {% else %}
+                            —
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" class="px-5 py-10 text-center text-sm text-slate-500">
+                            まだ棚卸がありません。
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <a href="/" class="inline-flex items-center justify-center rounded-full border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900">
+                ← ホームへ
+            </a>
+            <a href="/logout" class="inline-flex items-center justify-center rounded-full border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900">
+                🚪 ログアウト
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -62,7 +62,6 @@
                             <th class="px-4 py-3 text-left font-semibold">最低在庫量（{{ selected_store.name }}）</th>
                             <th class="px-4 py-3 text-left font-semibold">{{ selected_store.name }} 在庫</th>
                         {% endif %}
-                        <th class="px-4 py-3 text-left font-semibold">生物？</th>
                         <th class="px-4 py-3 text-left font-semibold">メモ</th>
                         <th class="px-4 py-3 text-left font-semibold">操作</th>
                     </tr>
@@ -109,9 +108,6 @@
                                 </span>
                             </td>
                         {% endif %}
-                        <td class="whitespace-nowrap px-4 py-3 text-slate-600">
-                            {{ "はい" if category and category.is_perishable == 1 else "いいえ" }}
-                        </td>
                         <td class="max-w-xs px-4 py-3 text-slate-600">
                             <p class="line-clamp-2 text-sm">{{ m.memo }}</p>
                         </td>
