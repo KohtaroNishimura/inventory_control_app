@@ -49,15 +49,15 @@
                     <p class="text-sm text-slate-600">棚卸数は小数対応、発注は整数です。</p>
                 </div>
 
-                <div class="mt-4 overflow-x-auto rounded-2xl border border-slate-100 bg-white">
-                    <table class="min-w-[680px] divide-y divide-slate-100">
+                <div class="mt-4 max-w-full overflow-x-auto rounded-2xl border border-slate-100 bg-white" style="-webkit-overflow-scrolling: touch;">
+                    <table class="min-w-max divide-y divide-slate-100">
                         <thead class="bg-white">
                             <tr>
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">材料</th>
-                                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">システム在庫</th>
-                                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">最低量</th>
-                                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">棚卸数</th>
-                                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">発注</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">材料</th>
+                                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">システム在庫</th>
+                                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">最低量</th>
+                                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">棚卸数</th>
+                                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">発注</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
@@ -67,11 +67,11 @@
                                     {{ material.name }}
                                     <span class="ml-1 text-xs font-normal text-slate-500">({{ material.unit }})</span>
                                 </td>
-                                <td class="px-4 py-3 text-right text-sm text-slate-700">{{ material.system_stock }}</td>
-                                <td class="px-4 py-3 text-right text-sm text-slate-700">
+                                <td class="px-4 py-3 text-right text-sm text-slate-700 whitespace-nowrap">{{ material.system_stock }}</td>
+                                <td class="px-4 py-3 text-right text-sm text-slate-700 whitespace-nowrap">
                                     {% if material.minimum is not none %}{{ material.minimum }}{% else %}—{% endif %}
                                 </td>
-                                <td class="px-4 py-3 text-right">
+                                <td class="px-4 py-3 text-right whitespace-nowrap">
                                     <input
                                         type="number"
                                         name="count_qty_{{ material.id }}"
@@ -83,7 +83,7 @@
                                         required
                                     >
                                 </td>
-                                <td class="px-4 py-3 text-right">
+                                <td class="px-4 py-3 text-right whitespace-nowrap">
                                     <input
                                         type="number"
                                         name="order_qty_{{ material.id }}"
