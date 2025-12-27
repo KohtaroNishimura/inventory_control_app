@@ -8,7 +8,7 @@
             <div class="space-y-1">
                 <p class="text-sm font-semibold uppercase tracking-wide text-brand">棚卸</p>
                 <h1 class="text-2xl font-bold text-slate-900 sm:text-3xl">月次棚卸し</h1>
-                <p class="text-sm text-slate-600">店舗・倉庫ごとの実在庫（目視カウント）を月単位で確認できます。</p>
+                <p class="text-sm text-slate-600">月次棚卸しは本部が全体在庫と原価を正確に把握するための集計です。</p>
             </div>
             <div class="flex gap-3">
                 <a href="/" class="inline-flex items-center justify-center rounded-full border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900">
@@ -73,6 +73,28 @@
         </div>
 
         <div class="mt-10 space-y-3">
+            <h2 class="text-base font-bold text-slate-900">在庫金額サマリー</h2>
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {% for store in stores %}
+                <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                    <div class="text-sm font-semibold text-slate-900">{{ store.name }}</div>
+                    <div class="text-lg font-bold text-slate-900">
+                        ¥{{ "{:,.0f}".format(store_totals.get(store.id, 0)) }}
+                    </div>
+                    <div class="text-xs text-slate-500">月末在庫金額</div>
+                </div>
+                {% endfor %}
+                <div class="rounded-2xl border border-slate-100 bg-brand/5 p-4">
+                    <div class="text-sm font-semibold text-slate-900">全体合計</div>
+                    <div class="text-lg font-bold text-slate-900">
+                        ¥{{ "{:,.0f}".format(overall_total) }}
+                    </div>
+                    <div class="text-xs text-slate-500">全拠点の在庫金額合計</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-10 space-y-3">
             <h2 class="text-base font-bold text-slate-900">実在庫一覧（材料 × 拠点）</h2>
             <div class="overflow-x-auto rounded-2xl border border-slate-100 bg-white">
                 <table class="min-w-full divide-y divide-slate-100">
@@ -93,8 +115,16 @@
                             </td>
                             {% for store in stores %}
                             {% set value = counts.get(material.id, {}).get(store.id) %}
+                            {% set price_value = values.get(material.id, {}).get(store.id) %}
                             <td class="px-4 py-3 text-right text-sm text-slate-700">
-                                {% if value is not none %}{{ value }}{% else %}—{% endif %}
+                                {% if value is not none %}
+                                    <div class="font-semibold text-slate-900">{{ value }}</div>
+                                {% else %}
+                                    <div class="text-slate-400">—</div>
+                                {% endif %}
+                                {% if price_value is not none %}
+                                    <div class="text-xs text-slate-500">¥{{ "{:,.0f}".format(price_value) }}</div>
+                                {% endif %}
                             </td>
                             {% endfor %}
                         </tr>
@@ -106,4 +136,3 @@
     </div>
 </div>
 {% endblock %}
-

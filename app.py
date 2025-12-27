@@ -905,7 +905,24 @@ def build_daily_report_line_message(report, store_name, orders):
     return "\n".join(lines)
 
 
-def build_stocktake_line_message(session, store_name, order_items):
+def build_stocktake_line_message(session, store_name, items, order_items):
+    if session.get("session_type") == "monthly":
+        lines = [f"【月次棚卸し報告】{store_name} {session['count_date']}"]
+        if items:
+            lines.append("在庫数:")
+            for item in items:
+                qty = item.get("counted_quantity")
+                qty_text = f"{float(qty):g}" if qty is not None else "不明"
+                unit_text = item.get("unit") or ""
+                flag = " (要確認)" if qty == 0 else ""
+                lines.append(f"- {item['material_name']}: {qty_text} {unit_text}{flag}")
+
+        notes = (session.get("notes") or "").strip()
+        if notes:
+            lines.append("備考:")
+            lines.append(notes)
+        return "\n".join(lines)
+
     lines = [
         f"【FC本部発注】{store_name} {session['count_date']}",
     ]
@@ -1603,7 +1620,12 @@ def monthly_stocktakes():
         month = date.today().strftime("%Y-%m")
 
     stores = db_fetchall("SELECT id, name FROM stores ORDER BY id")
-    materials = db_fetchall("SELECT id, name, unit FROM materials ORDER BY name")
+    materials = db_fetchall(
+        "SELECT id, name, unit, price_per_unit FROM materials ORDER BY name"
+    )
+    price_by_material = {
+        material["id"]: material.get("price_per_unit") for material in materials
+    }
 
     sessions = db_fetchall(
         """
@@ -1627,10 +1649,27 @@ def monthly_stocktakes():
         (month,),
     )
     counts = {}
+    values = {}
+    store_totals = {store["id"]: 0.0 for store in stores}
+    material_totals = {material["id"]: 0.0 for material in materials}
+    overall_total = 0.0
     for row in count_rows:
-        counts.setdefault(row["material_id"], {})[row["store_id"]] = row[
-            "counted_quantity"
-        ]
+        material_id = row["material_id"]
+        store_id = row["store_id"]
+        qty = row["counted_quantity"]
+        counts.setdefault(material_id, {})[store_id] = qty
+
+        price = price_by_material.get(material_id)
+        if price is None or qty is None:
+            continue
+        try:
+            value = float(qty) * float(price)
+        except (TypeError, ValueError):
+            continue
+        values.setdefault(material_id, {})[store_id] = value
+        store_totals[store_id] += value
+        material_totals[material_id] += value
+        overall_total += value
 
     return render_template(
         "monthly_stocktakes.html",
@@ -1639,6 +1678,10 @@ def monthly_stocktakes():
         materials=materials,
         sessions_by_store=sessions_by_store,
         counts=counts,
+        values=values,
+        store_totals=store_totals,
+        material_totals=material_totals,
+        overall_total=overall_total,
         is_admin=is_admin_user(),
         current_store_id=current_user.store_id,
     )
@@ -1688,7 +1731,7 @@ def stocktake_detail(session_id):
     )
 
     line_message = build_stocktake_line_message(
-        session, session["store_name"], order_items
+        session, session["store_name"], items, order_items
     )
     return render_template(
         "stocktake_detail.html",
