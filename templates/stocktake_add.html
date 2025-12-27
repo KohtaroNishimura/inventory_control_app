@@ -8,6 +8,9 @@
             <div class="space-y-1">
                 <p class="text-sm font-semibold uppercase tracking-wide text-brand">棚卸</p>
                 <h1 class="text-2xl font-bold text-slate-900 sm:text-3xl">棚卸作成</h1>
+                {% if session_type == "monthly" %}
+                <p class="text-sm text-slate-600">種別: 月次棚卸し（{{ count_month }}）</p>
+                {% endif %}
                 {% if selected_store %}
                 <p class="text-sm text-slate-600">店舗: {{ selected_store.name }}</p>
                 {% endif %}
@@ -21,6 +24,8 @@
         </div>
 
         <form method="post" action="/stocktakes/add" class="mt-8 space-y-8">
+            <input type="hidden" name="session_type" value="{{ session_type }}">
+            <input type="hidden" name="count_month" value="{{ count_month }}">
             {% if is_admin %}
             <div class="grid gap-4 sm:grid-cols-2">
                 <label class="block">

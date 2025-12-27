@@ -10,8 +10,9 @@ from flask_login import (
 from werkzeug.security import check_password_hash
 from pathlib import Path
 import sqlite3
-from datetime import date
+from datetime import date, timedelta
 import math
+import re
 
 app = Flask(__name__, instance_relative_config=True)
 app.secret_key = "change-this-secret-key"
@@ -206,6 +207,8 @@ def ensure_stocktake_tables():
             company_id INTEGER,
             store_id INTEGER NOT NULL,
             count_date TEXT NOT NULL,
+            session_type TEXT DEFAULT 'ad_hoc',
+            count_month TEXT,
             status TEXT DEFAULT 'draft',
             notes TEXT,
             confirmed_at TEXT,
@@ -248,6 +251,31 @@ def ensure_stocktake_tables():
         """
         CREATE UNIQUE INDEX IF NOT EXISTS idx_stocktake_order_items_unique
         ON stocktake_order_items(session_id, material_id)
+        """
+    )
+
+    session_columns = {
+        row["name"]
+        for row in conn.execute("PRAGMA table_info(stocktake_sessions)").fetchall()
+    }
+    if "session_type" not in session_columns:
+        conn.execute(
+            "ALTER TABLE stocktake_sessions ADD COLUMN session_type TEXT DEFAULT 'ad_hoc'"
+        )
+    if "count_month" not in session_columns:
+        conn.execute("ALTER TABLE stocktake_sessions ADD COLUMN count_month TEXT")
+
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_stocktake_sessions_type_month
+        ON stocktake_sessions(session_type, count_month)
+        """
+    )
+    conn.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_stocktake_sessions_monthly_unique
+        ON stocktake_sessions(store_id, count_month)
+        WHERE session_type = 'monthly'
         """
     )
     conn.commit()
@@ -1372,6 +1400,27 @@ def stocktake_add_form():
     )
     default_date = request.args.get("date") or date.today().isoformat()
 
+    session_type = (request.args.get("type") or "ad_hoc").strip()
+    if session_type not in ("ad_hoc", "monthly"):
+        session_type = "ad_hoc"
+    count_month = (request.args.get("month") or "").strip()
+    if session_type == "monthly":
+        if not re.match(r"^\d{4}-\d{2}$", count_month):
+            count_month = date.today().strftime("%Y-%m")
+        try:
+            year, month = map(int, count_month.split("-", 1))
+            if not (1 <= month <= 12):
+                raise ValueError
+            first_day = date(year, month, 1)
+            if month == 12:
+                next_month = date(year + 1, 1, 1)
+            else:
+                next_month = date(year, month + 1, 1)
+            default_date = (next_month - timedelta(days=1)).isoformat()
+        except ValueError:
+            session_type = "ad_hoc"
+            count_month = ""
+
     return render_template(
         "stocktake_add.html",
         stores=stores,
@@ -1380,6 +1429,8 @@ def stocktake_add_form():
         is_admin=is_admin_user(),
         material_rows=material_rows,
         default_date=default_date,
+        session_type=session_type,
+        count_month=count_month,
     )
 
 
@@ -1392,6 +1443,24 @@ def stocktake_add():
     count_date = (request.form.get("date") or "").strip()
     if not count_date:
         return "棚卸日が未入力です。", 400
+
+    session_type = (request.form.get("session_type") or "ad_hoc").strip()
+    if session_type not in ("ad_hoc", "monthly"):
+        session_type = "ad_hoc"
+    count_month = (request.form.get("count_month") or "").strip() or None
+    if session_type == "monthly":
+        if count_month is None:
+            count_month = count_date[:7]
+        if not re.match(r"^\d{4}-\d{2}$", count_month):
+            return "月次棚卸しの対象月が不正です。", 400
+        try:
+            year, month = map(int, count_month.split("-", 1))
+            if not (1 <= month <= 12):
+                raise ValueError
+        except ValueError:
+            return "月次棚卸しの対象月が不正です。", 400
+    else:
+        count_month = None
 
     conn = get_db()
     stores = conn.execute("SELECT id FROM stores").fetchall()
@@ -1406,14 +1475,21 @@ def stocktake_add():
 
     notes = (request.form.get("notes") or "").strip() or None
 
-    cursor = conn.execute(
-        """
-        INSERT INTO stocktake_sessions (company_id, store_id, count_date, status, notes)
-        VALUES (?, ?, ?, ?, ?)
-        """,
-        (None, store_id, count_date, "draft", notes),
-    )
-    session_id = cursor.lastrowid
+    try:
+        cursor = conn.execute(
+            """
+            INSERT INTO stocktake_sessions
+            (company_id, store_id, count_date, session_type, count_month, status, notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (None, store_id, count_date, session_type, count_month, "draft", notes),
+        )
+        session_id = cursor.lastrowid
+    except sqlite3.IntegrityError:
+        conn.close()
+        if session_type == "monthly":
+            return "この店舗の月次棚卸しは既に作成されています。", 400
+        raise
 
     materials = conn.execute("SELECT id FROM materials").fetchall()
     material_ids = {material["id"] for material in materials}
@@ -1461,6 +1537,62 @@ def stocktake_add():
     conn.close()
 
     return redirect(f"/stocktakes/{session_id}")
+
+
+# ---------------------------------------------
+# 月次棚卸し（一覧・集計）
+# ---------------------------------------------
+@app.route("/monthly_stocktakes")
+@login_required
+def monthly_stocktakes():
+    month = (request.args.get("month") or date.today().strftime("%Y-%m")).strip()
+    if not re.match(r"^\d{4}-\d{2}$", month):
+        month = date.today().strftime("%Y-%m")
+
+    conn = get_db()
+    stores = conn.execute("SELECT id, name FROM stores ORDER BY id").fetchall()
+    materials = conn.execute(
+        "SELECT id, name, unit FROM materials ORDER BY name"
+    ).fetchall()
+
+    sessions = conn.execute(
+        """
+        SELECT ss.*, s.name AS store_name
+        FROM stocktake_sessions ss
+        JOIN stores s ON ss.store_id = s.id
+        WHERE ss.session_type = 'monthly' AND ss.count_month = ?
+        ORDER BY ss.store_id
+        """,
+        (month,),
+    ).fetchall()
+    sessions_by_store = {row["store_id"]: row for row in sessions}
+
+    count_rows = conn.execute(
+        """
+        SELECT ss.store_id, si.material_id, si.counted_quantity
+        FROM stocktake_sessions ss
+        JOIN stocktake_items si ON si.session_id = ss.id
+        WHERE ss.session_type = 'monthly' AND ss.count_month = ?
+        """,
+        (month,),
+    ).fetchall()
+    counts = {}
+    for row in count_rows:
+        counts.setdefault(row["material_id"], {})[row["store_id"]] = row[
+            "counted_quantity"
+        ]
+
+    conn.close()
+    return render_template(
+        "monthly_stocktakes.html",
+        month=month,
+        stores=stores,
+        materials=materials,
+        sessions_by_store=sessions_by_store,
+        counts=counts,
+        is_admin=is_admin_user(),
+        current_store_id=current_user.store_id,
+    )
 
 
 # ---------------------------------------------
@@ -1658,14 +1790,28 @@ def stocktake_edit(session_id):
 
     notes = (request.form.get("notes") or "").strip() or None
 
-    conn.execute(
-        """
-        UPDATE stocktake_sessions
-        SET store_id = ?, count_date = ?, notes = ?
-        WHERE id = ?
-        """,
-        (store_id, count_date, notes, session_id),
-    )
+    session_type = (session["session_type"] or "ad_hoc").strip()
+    count_month = None
+    if session_type == "monthly":
+        count_month = count_date[:7]
+        if not re.match(r"^\d{4}-\d{2}$", count_month):
+            conn.close()
+            return "月次棚卸しの棚卸日が不正です。", 400
+
+    try:
+        conn.execute(
+            """
+            UPDATE stocktake_sessions
+            SET store_id = ?, count_date = ?, count_month = ?, notes = ?
+            WHERE id = ?
+            """,
+            (store_id, count_date, count_month, notes, session_id),
+        )
+    except sqlite3.IntegrityError:
+        conn.close()
+        if session_type == "monthly":
+            return "この店舗の月次棚卸しは既に作成されています。", 400
+        raise
 
     materials = conn.execute("SELECT id FROM materials").fetchall()
     material_ids = {material["id"] for material in materials}

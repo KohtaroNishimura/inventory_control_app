@@ -36,6 +36,7 @@
                 <thead class="bg-slate-50">
                     <tr>
                         <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">棚卸日</th>
+                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">種別</th>
                         <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">状態</th>
                         <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">メモ</th>
                         <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">操作</th>
@@ -48,6 +49,13 @@
                             <a href="/stocktakes/{{ session.id }}" class="underline decoration-slate-200 underline-offset-4 hover:decoration-brand">
                                 {{ session.count_date }}
                             </a>
+                        </td>
+                        <td class="px-5 py-3 text-sm text-slate-700">
+                            {% if session.session_type == 'monthly' %}
+                            月次{% if session.count_month %} ({{ session.count_month }}){% endif %}
+                            {% else %}
+                            通常
+                            {% endif %}
                         </td>
                         <td class="px-5 py-3 text-sm text-slate-700">
                             {% if session.status == 'confirmed' %}
@@ -74,7 +82,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="4" class="px-5 py-10 text-center text-sm text-slate-500">
+                        <td colspan="5" class="px-5 py-10 text-center text-sm text-slate-500">
                             まだ棚卸がありません。
                         </td>
                     </tr>
