@@ -914,8 +914,7 @@ def build_stocktake_line_message(session, store_name, items, order_items):
                 qty = item.get("counted_quantity")
                 qty_text = f"{float(qty):g}" if qty is not None else "不明"
                 unit_text = item.get("unit") or ""
-                flag = " (要確認)" if qty == 0 else ""
-                lines.append(f"- {item['material_name']}: {qty_text} {unit_text}{flag}")
+                lines.append(f"- {item['material_name']}: {qty_text} {unit_text}")
 
         notes = (session.get("notes") or "").strip()
         if notes:
