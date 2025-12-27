@@ -1,7 +1,6 @@
 import os
 import math
 import re
-import logging
 from datetime import date, timedelta
 
 from flask import Flask, render_template, request, redirect
@@ -20,7 +19,6 @@ from werkzeug.security import check_password_hash
 
 app = Flask(__name__, instance_relative_config=True)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-key")
-logging.basicConfig(level=logging.INFO)
 
 db_url = os.environ.get("DATABASE_URL")
 if db_url:
@@ -41,12 +39,6 @@ db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login_form"
-
-
-@app.errorhandler(Exception)
-def handle_exception(error):
-    app.logger.exception("Unhandled exception")
-    return "Internal Server Error", 500
 
 
 class Company(db.Model):
@@ -553,8 +545,8 @@ def add_material_form():
 def add_material():
     name = request.form["name"]
     unit = request.form["unit"]
-    price = request.form["price"]
-    minimum_stock = request.form["minimum_stock"]
+    price = parse_float(request.form.get("price"))
+    minimum_stock = parse_float(request.form.get("minimum_stock"))
     category_id = request.form.get("category_id")
     memo = request.form.get("memo", "")
 
@@ -631,8 +623,8 @@ def edit_material_form(material_id):
 def edit_material(material_id):
     name = request.form["name"]
     unit = request.form["unit"]
-    price = request.form["price"]
-    minimum_stock = request.form["minimum_stock"]
+    price = parse_float(request.form.get("price"))
+    minimum_stock = parse_float(request.form.get("minimum_stock"))
     category_id = request.form.get("category_id")
     memo = request.form.get("memo", "")
 
