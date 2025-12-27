@@ -1,3 +1,8 @@
+import os
+import math
+import re
+from datetime import date, timedelta
+
 from flask import Flask, render_template, request, redirect
 from flask_login import (
     LoginManager,
@@ -7,42 +12,219 @@ from flask_login import (
     UserMixin,
     current_user,
 )
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text, inspect
+from sqlalchemy.exc import IntegrityError
 from werkzeug.security import check_password_hash
-from pathlib import Path
-import sqlite3
-from datetime import date, timedelta
-import math
-import re
 
 app = Flask(__name__, instance_relative_config=True)
-app.secret_key = "change-this-secret-key"
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-key")
+
+db_url = os.environ.get("DATABASE_URL")
+if db_url:
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+    app.config["SQLALCHEMY_DATABASE_URI"] = db_url
+else:
+    os.makedirs(app.instance_path, exist_ok=True)
+    app.config["SQLALCHEMY_DATABASE_URI"] = (
+        f"sqlite:///{os.path.join(app.instance_path, 'inventory_control.db')}"
+    )
+
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login_form"
 
-Path(app.instance_path).mkdir(parents=True, exist_ok=True)
-DATABASE = Path(app.instance_path) / "inventory_control.db"
-app.config["DATABASE"] = DATABASE
+
+class Company(db.Model):
+    __tablename__ = "companies"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=False)
+    type = db.Column(db.String)
 
 
-class User(UserMixin):
-    def __init__(self, id, name, email, role, store_id):
-        self.id = id
-        self.name = name
-        self.email = email
-        self.role = role
-        self.store_id = store_id
+class Store(db.Model):
+    __tablename__ = "stores"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=False)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"))
+
+
+class User(db.Model, UserMixin):
+    __tablename__ = "users"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=False)
+    email = db.Column(db.String, unique=True, nullable=False)
+    password_hash = db.Column(db.String, nullable=False)
+    role = db.Column(db.String, nullable=False)
+    store_id = db.Column(db.Integer, db.ForeignKey("stores.id"))
+
+
+class MaterialCategory(db.Model):
+    __tablename__ = "material_categories"
+
+    id = db.Column(db.Integer, primary_key=True)
+    category_name = db.Column(db.String, nullable=False)
+    is_perishable = db.Column(db.Integer, default=0)
+
+
+class Material(db.Model):
+    __tablename__ = "materials"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=False)
+    unit = db.Column(db.String)
+    price_per_unit = db.Column(db.Float)
+    minimum_stock = db.Column(db.Float)
+    category_id = db.Column(db.Integer, db.ForeignKey("material_categories.id"))
+    perishable = db.Column(db.Integer, default=0)
+    memo = db.Column(db.Text)
+
+
+class MovementType(db.Model):
+    __tablename__ = "movement_types"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=False)
+
+
+class InventoryMovement(db.Model):
+    __tablename__ = "inventory_movements"
+
+    id = db.Column(db.Integer, primary_key=True)
+    store_id = db.Column(db.Integer, db.ForeignKey("stores.id"), nullable=False)
+    material_id = db.Column(db.Integer, db.ForeignKey("materials.id"), nullable=False)
+    movement_type_id = db.Column(
+        db.Integer, db.ForeignKey("movement_types.id"), nullable=False
+    )
+    quantity = db.Column(db.Float, nullable=False)
+    total_price = db.Column(db.Float)
+    datetime = db.Column(db.String, nullable=False)
+    memo = db.Column(db.Text)
+
+
+class ForecastOrder(db.Model):
+    __tablename__ = "forecast_orders"
+
+    id = db.Column(db.Integer, primary_key=True)
+    store_id = db.Column(db.Integer, db.ForeignKey("stores.id"), nullable=False)
+    material_id = db.Column(db.Integer, db.ForeignKey("materials.id"), nullable=False)
+    quantity = db.Column(db.Float, nullable=False)
+    order_date = db.Column(db.String, nullable=False)
+    status = db.Column(db.String, nullable=False)
+
+
+class StockCount(db.Model):
+    __tablename__ = "stock_counts"
+
+    id = db.Column(db.Integer, primary_key=True)
+    store_id = db.Column(db.Integer, db.ForeignKey("stores.id"), nullable=False)
+    material_id = db.Column(db.Integer, db.ForeignKey("materials.id"), nullable=False)
+    counted_quantity = db.Column(db.Float, nullable=False)
+    count_date = db.Column(db.String, nullable=False)
+    type = db.Column(db.String)
+
+
+class MaterialStoreMinimum(db.Model):
+    __tablename__ = "material_store_minimums"
+    __table_args__ = (
+        db.UniqueConstraint("material_id", "store_id", name="idx_material_store_minimums_unique"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    material_id = db.Column(db.Integer, db.ForeignKey("materials.id"), nullable=False)
+    store_id = db.Column(db.Integer, db.ForeignKey("stores.id"), nullable=False)
+    minimum_stock = db.Column(db.Float)
+
+
+class DailyReport(db.Model):
+    __tablename__ = "daily_reports"
+    __table_args__ = (
+        db.UniqueConstraint("store_id", "date", name="idx_daily_reports_store_date"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    store_id = db.Column(db.Integer, db.ForeignKey("stores.id"), nullable=False)
+    date = db.Column(db.String, nullable=False)
+    sales = db.Column(db.Float)
+    wasted_takoyaki = db.Column(db.Integer)
+    production_sets = db.Column(db.Integer)
+    working_hours = db.Column(db.Float)
+    next_material_delivery = db.Column(db.String)
+    remarks = db.Column(db.Text)
+
+
+class DailyReportOrder(db.Model):
+    __tablename__ = "daily_report_orders"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "daily_report_id",
+            "material_id",
+            name="idx_daily_report_orders_unique_material",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    daily_report_id = db.Column(
+        db.Integer, db.ForeignKey("daily_reports.id"), nullable=False
+    )
+    material_id = db.Column(db.Integer, db.ForeignKey("materials.id"), nullable=False)
+    quantity = db.Column(db.Float, nullable=False)
+
+
+class StocktakeSession(db.Model):
+    __tablename__ = "stocktake_sessions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"))
+    store_id = db.Column(db.Integer, db.ForeignKey("stores.id"), nullable=False)
+    count_date = db.Column(db.String, nullable=False)
+    session_type = db.Column(db.String, server_default="ad_hoc")
+    count_month = db.Column(db.String)
+    status = db.Column(db.String, server_default="draft")
+    notes = db.Column(db.Text)
+    confirmed_at = db.Column(db.String)
+
+
+class StocktakeItem(db.Model):
+    __tablename__ = "stocktake_items"
+    __table_args__ = (
+        db.UniqueConstraint("session_id", "material_id", name="idx_stocktake_items_unique"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey("stocktake_sessions.id"), nullable=False)
+    material_id = db.Column(db.Integer, db.ForeignKey("materials.id"), nullable=False)
+    counted_quantity = db.Column(db.Float, nullable=False)
+
+
+class StocktakeOrderItem(db.Model):
+    __tablename__ = "stocktake_order_items"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "session_id",
+            "material_id",
+            name="idx_stocktake_order_items_unique",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey("stocktake_sessions.id"), nullable=False)
+    material_id = db.Column(db.Integer, db.ForeignKey("materials.id"), nullable=False)
+    quantity = db.Column(db.Float, nullable=False)
 
 
 @login_manager.user_loader
 def load_user(user_id):
-    conn = get_db()
-    row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
-    conn.close()
-
-    if row:
-        return User(row["id"], row["name"], row["email"], row["role"], row["store_id"])
-    return None
+    if not user_id:
+        return None
+    return db.session.get(User, int(user_id))
 
 
 # ---------------------------------------------
@@ -66,14 +248,9 @@ def login():
     email = request.form["email"]
     password = request.form["password"]
 
-    conn = get_db()
-    user = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
-    conn.close()
-
-    if user and check_password_hash(user["password_hash"], password):
-        login_user(
-            User(user["id"], user["name"], user["email"], user["role"], user["store_id"])
-        )
+    user = User.query.filter_by(email=email).first()
+    if user and check_password_hash(user.password_hash, password):
+        login_user(user)
         return redirect("/")
 
     return "ログイン失敗：メールアドレスまたはパスワードが違います"
@@ -84,16 +261,6 @@ def login():
 def logout():
     logout_user()
     return redirect("/login")
-
-
-# ---------------------------------------------
-# DB接続用の関数（毎回これでDBを開く）
-# ---------------------------------------------
-def get_db():
-    conn = sqlite3.connect(app.config["DATABASE"])
-    conn.row_factory = sqlite3.Row  # ← 辞書のように列名でアクセスできる
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
 
 
 def is_admin_user():
@@ -124,165 +291,119 @@ def parse_int(value):
         return None
 
 
-def ensure_material_store_minimums_table():
-    """Ensure the table for per-store minimum stock thresholds exists."""
-    conn = get_db()
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS material_store_minimums (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            material_id INTEGER NOT NULL,
-            store_id INTEGER NOT NULL,
-            minimum_stock REAL,
-            UNIQUE (material_id, store_id),
-            FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE,
-            FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE
+def normalize_params(sql, params):
+    if params is None or params == () or params == []:
+        return sql, {}
+    if isinstance(params, dict):
+        return sql, params
+    out = []
+    index = 0
+    for ch in sql:
+        if ch == "?":
+            index += 1
+            out.append(f":p{index}")
+        else:
+            out.append(ch)
+    bind_params = {f"p{i}": params[i - 1] for i in range(1, index + 1)}
+    return "".join(out), bind_params
+
+
+def db_execute(sql, params=None):
+    sql, bind_params = normalize_params(sql, params)
+    return db.session.execute(text(sql), bind_params)
+
+
+def db_fetchall(sql, params=None):
+    return db_execute(sql, params).mappings().all()
+
+
+def db_fetchone(sql, params=None):
+    return db_execute(sql, params).mappings().first()
+
+
+def db_fetchscalar(sql, params=None):
+    return db_execute(sql, params).scalar()
+
+
+def ensure_schema():
+    db.create_all()
+
+    inspector = inspect(db.engine)
+    if "stocktake_sessions" in inspector.get_table_names():
+        columns = {column["name"] for column in inspector.get_columns("stocktake_sessions")}
+        if "session_type" not in columns:
+            db.session.execute(
+                text(
+                    "ALTER TABLE stocktake_sessions ADD COLUMN session_type TEXT DEFAULT 'ad_hoc'"
+                )
+            )
+        if "count_month" not in columns:
+            db.session.execute(
+                text("ALTER TABLE stocktake_sessions ADD COLUMN count_month TEXT")
+            )
+
+    db.session.execute(
+        text(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_material_store_minimums_unique
+            ON material_store_minimums(material_id, store_id)
+            """
         )
-        """
     )
-    conn.commit()
-    conn.close()
-
-
-ensure_material_store_minimums_table()
-
-
-def ensure_daily_reports_tables():
-    """Ensure the tables for daily reports exist."""
-    conn = get_db()
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS daily_reports (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            store_id INTEGER NOT NULL,
-            date TEXT NOT NULL,
-            sales REAL,
-            wasted_takoyaki INTEGER,
-            production_sets INTEGER,
-            working_hours REAL,
-            next_material_delivery TEXT,
-            remarks TEXT,
-            FOREIGN KEY (store_id) REFERENCES stores(id)
+    db.session.execute(
+        text(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_reports_store_date
+            ON daily_reports(store_id, date)
+            """
         )
-        """
     )
-    conn.execute(
-        """
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_reports_store_date
-        ON daily_reports(store_id, date)
-        """
-    )
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS daily_report_orders (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            daily_report_id INTEGER NOT NULL,
-            material_id INTEGER NOT NULL,
-            quantity INTEGER NOT NULL,
-            FOREIGN KEY (daily_report_id) REFERENCES daily_reports(id) ON DELETE CASCADE,
-            FOREIGN KEY (material_id) REFERENCES materials(id)
+    db.session.execute(
+        text(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_report_orders_unique_material
+            ON daily_report_orders(daily_report_id, material_id)
+            """
         )
-        """
     )
-    conn.execute(
-        """
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_report_orders_unique_material
-        ON daily_report_orders(daily_report_id, material_id)
-        """
-    )
-    conn.commit()
-    conn.close()
-
-
-ensure_daily_reports_tables()
-
-
-def ensure_stocktake_tables():
-    """Ensure the tables for stocktakes exist."""
-    conn = get_db()
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS stocktake_sessions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            company_id INTEGER,
-            store_id INTEGER NOT NULL,
-            count_date TEXT NOT NULL,
-            session_type TEXT DEFAULT 'ad_hoc',
-            count_month TEXT,
-            status TEXT DEFAULT 'draft',
-            notes TEXT,
-            confirmed_at TEXT,
-            FOREIGN KEY (company_id) REFERENCES companies(id),
-            FOREIGN KEY (store_id) REFERENCES stores(id)
+    db.session.execute(
+        text(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_stocktake_items_unique
+            ON stocktake_items(session_id, material_id)
+            """
         )
-        """
     )
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS stocktake_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_id INTEGER NOT NULL,
-            material_id INTEGER NOT NULL,
-            counted_quantity REAL NOT NULL,
-            FOREIGN KEY (session_id) REFERENCES stocktake_sessions(id) ON DELETE CASCADE,
-            FOREIGN KEY (material_id) REFERENCES materials(id)
+    db.session.execute(
+        text(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_stocktake_order_items_unique
+            ON stocktake_order_items(session_id, material_id)
+            """
         )
-        """
     )
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS stocktake_order_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_id INTEGER NOT NULL,
-            material_id INTEGER NOT NULL,
-            quantity INTEGER NOT NULL,
-            FOREIGN KEY (session_id) REFERENCES stocktake_sessions(id) ON DELETE CASCADE,
-            FOREIGN KEY (material_id) REFERENCES materials(id)
+    db.session.execute(
+        text(
+            """
+            CREATE INDEX IF NOT EXISTS idx_stocktake_sessions_type_month
+            ON stocktake_sessions(session_type, count_month)
+            """
         )
-        """
     )
-    conn.execute(
-        """
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_stocktake_items_unique
-        ON stocktake_items(session_id, material_id)
-        """
-    )
-    conn.execute(
-        """
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_stocktake_order_items_unique
-        ON stocktake_order_items(session_id, material_id)
-        """
-    )
-
-    session_columns = {
-        row["name"]
-        for row in conn.execute("PRAGMA table_info(stocktake_sessions)").fetchall()
-    }
-    if "session_type" not in session_columns:
-        conn.execute(
-            "ALTER TABLE stocktake_sessions ADD COLUMN session_type TEXT DEFAULT 'ad_hoc'"
+    db.session.execute(
+        text(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_stocktake_sessions_monthly_unique
+            ON stocktake_sessions(store_id, count_month)
+            WHERE session_type = 'monthly'
+            """
         )
-    if "count_month" not in session_columns:
-        conn.execute("ALTER TABLE stocktake_sessions ADD COLUMN count_month TEXT")
-
-    conn.execute(
-        """
-        CREATE INDEX IF NOT EXISTS idx_stocktake_sessions_type_month
-        ON stocktake_sessions(session_type, count_month)
-        """
     )
-    conn.execute(
-        """
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_stocktake_sessions_monthly_unique
-        ON stocktake_sessions(store_id, count_month)
-        WHERE session_type = 'monthly'
-        """
-    )
-    conn.commit()
-    conn.close()
+    db.session.commit()
 
 
-ensure_stocktake_tables()
+with app.app_context():
+    ensure_schema()
 
 
 # ---------------------------------------------
@@ -291,12 +412,11 @@ ensure_stocktake_tables()
 @app.route("/materials")
 @login_required
 def materials_list():
-    conn = get_db()
-    materials = conn.execute("SELECT * FROM materials").fetchall()
-    stores = conn.execute("SELECT id, name FROM stores").fetchall()
-    store_minimum_rows = conn.execute(
+    materials = db_fetchall("SELECT * FROM materials")
+    stores = db_fetchall("SELECT id, name FROM stores")
+    store_minimum_rows = db_fetchall(
         "SELECT material_id, store_id, minimum_stock FROM material_store_minimums"
-    ).fetchall()
+    )
 
     per_store_minimums = {}
     for row in store_minimum_rows:
@@ -311,15 +431,13 @@ def materials_list():
         try:
             store_id_int = int(store_param)
         except ValueError:
-            conn.close()
             return redirect("/materials")
         selected_store = next((store for store in stores if store["id"] == store_id_int), None)
         if not selected_store:
-            conn.close()
             return redirect("/materials")
         selected_store_id = store_id_int
 
-    stock_rows = conn.execute(
+    stock_rows = db_fetchall(
         """
         SELECT im.material_id,
                im.store_id,
@@ -336,7 +454,7 @@ def materials_list():
         JOIN movement_types mt ON im.movement_type_id = mt.id
         GROUP BY im.material_id, im.store_id
         """
-    ).fetchall()
+    )
     stock_levels = {}
     per_store_stock = {}
     for row in stock_rows:
@@ -383,9 +501,7 @@ def materials_list():
                 per_store, applicable_min
             )
 
-    category_rows = conn.execute(
-        "SELECT id, category_name FROM material_categories"
-    ).fetchall()
+    category_rows = db_fetchall("SELECT id, category_name FROM material_categories")
 
     categories = {}
     for category in category_rows:
@@ -394,7 +510,6 @@ def materials_list():
             "category_name": category["category_name"],
         }
 
-    conn.close()
     return render_template(
         "materials_list.html",
         materials=materials,
@@ -415,12 +530,8 @@ def materials_list():
 @app.route("/materials/add", methods=["GET"])
 @login_required
 def add_material_form():
-    conn = get_db()
-    categories = conn.execute(
-        "SELECT id, category_name FROM material_categories"
-    ).fetchall()
-    stores = conn.execute("SELECT id, name FROM stores").fetchall()
-    conn.close()
+    categories = db_fetchall("SELECT id, category_name FROM material_categories")
+    stores = db_fetchall("SELECT id, name FROM stores")
     return render_template("add_material.html", categories=categories, stores=stores)
 
 
@@ -442,18 +553,18 @@ def add_material():
     else:
         category_id = None
 
-    conn = get_db()
-    cursor = conn.execute(
+    result = db_execute(
         """
         INSERT INTO materials 
         (name, unit, price_per_unit, minimum_stock, category_id, memo)
         VALUES (?, ?, ?, ?, ?, ?)
+        RETURNING id
         """,
         (name, unit, price, minimum_stock, category_id, memo),
     )
-    material_id = cursor.lastrowid
+    material_id = result.scalar()
 
-    store_rows = conn.execute("SELECT id FROM stores").fetchall()
+    store_rows = db_fetchall("SELECT id FROM stores")
     for store in store_rows:
         field_name = f"minimum_stock_store_{store['id']}"
         raw_value = request.form.get(field_name)
@@ -463,7 +574,7 @@ def add_material():
             min_value = float(raw_value)
         except ValueError:
             continue
-        conn.execute(
+        db_execute(
             """
             INSERT INTO material_store_minimums (material_id, store_id, minimum_stock)
             VALUES (?, ?, ?)
@@ -471,8 +582,7 @@ def add_material():
             (material_id, store["id"], min_value),
         )
 
-    conn.commit()
-    conn.close()
+    db.session.commit()
 
     return redirect("/materials")
 
@@ -483,24 +593,16 @@ def add_material():
 @app.route("/materials/<int:material_id>/edit", methods=["GET"])
 @login_required
 def edit_material_form(material_id):
-    conn = get_db()
+    material = db_fetchone("SELECT * FROM materials WHERE id = ?", (material_id,))
 
-    material = conn.execute(
-        "SELECT * FROM materials WHERE id = ?", (material_id,)
-    ).fetchone()
+    categories = db_fetchall("SELECT id, category_name FROM material_categories")
 
-    categories = conn.execute(
-        "SELECT id, category_name FROM material_categories"
-    ).fetchall()
-
-    stores = conn.execute("SELECT id, name FROM stores").fetchall()
-    store_minimum_rows = conn.execute(
+    stores = db_fetchall("SELECT id, name FROM stores")
+    store_minimum_rows = db_fetchall(
         "SELECT store_id, minimum_stock FROM material_store_minimums WHERE material_id = ?",
         (material_id,),
-    ).fetchall()
+    )
     store_minimums = {row["store_id"]: row["minimum_stock"] for row in store_minimum_rows}
-
-    conn.close()
 
     return render_template(
         "edit_material.html",
@@ -529,8 +631,7 @@ def edit_material(material_id):
     else:
         category_id = None
 
-    conn = get_db()
-    conn.execute(
+    db_execute(
         """
         UPDATE materials
         SET name=?, unit=?, price_per_unit=?, minimum_stock=?,
@@ -539,11 +640,11 @@ def edit_material(material_id):
         """,
         (name, unit, price, minimum_stock, category_id, memo, material_id),
     )
-    conn.execute(
+    db_execute(
         "DELETE FROM material_store_minimums WHERE material_id = ?", (material_id,)
     )
 
-    store_rows = conn.execute("SELECT id FROM stores").fetchall()
+    store_rows = db_fetchall("SELECT id FROM stores")
     for store in store_rows:
         field_name = f"minimum_stock_store_{store['id']}"
         raw_value = request.form.get(field_name)
@@ -553,7 +654,7 @@ def edit_material(material_id):
             min_value = float(raw_value)
         except ValueError:
             continue
-        conn.execute(
+        db_execute(
             """
             INSERT INTO material_store_minimums (material_id, store_id, minimum_stock)
             VALUES (?, ?, ?)
@@ -561,8 +662,7 @@ def edit_material(material_id):
             (material_id, store["id"], min_value),
         )
 
-    conn.commit()
-    conn.close()
+    db.session.commit()
 
     return redirect("/materials")
 
@@ -573,11 +673,7 @@ def edit_material(material_id):
 @app.route("/materials/<int:material_id>/delete", methods=["GET"])
 @login_required
 def delete_material_confirm(material_id):
-    conn = get_db()
-    material = conn.execute(
-        "SELECT * FROM materials WHERE id=?", (material_id,)
-    ).fetchone()
-    conn.close()
+    material = db_fetchone("SELECT * FROM materials WHERE id=?", (material_id,))
 
     return render_template("delete_material.html", material=material)
 
@@ -588,10 +684,8 @@ def delete_material_confirm(material_id):
 @app.route("/materials/<int:material_id>/delete", methods=["POST"])
 @login_required
 def delete_material(material_id):
-    conn = get_db()
-    conn.execute("DELETE FROM materials WHERE id = ?", (material_id,))
-    conn.commit()
-    conn.close()
+    db_execute("DELETE FROM materials WHERE id = ?", (material_id,))
+    db.session.commit()
 
     return redirect("/materials")
 
@@ -602,8 +696,7 @@ def delete_material(material_id):
 @app.route("/movements")
 @login_required
 def movement_list():
-    conn = get_db()
-    movements = conn.execute(
+    movements = db_fetchall(
         """
         SELECT im.id, im.quantity, im.datetime, im.memo,
                m.name AS material_name,
@@ -615,8 +708,7 @@ def movement_list():
         JOIN stores s ON im.store_id = s.id
         ORDER BY im.datetime DESC
         """
-    ).fetchall()
-    conn.close()
+    )
     return render_template("movement_list.html", movements=movements)
 
 
@@ -626,13 +718,9 @@ def movement_list():
 @app.route("/movements/add", methods=["GET"])
 @login_required
 def movement_add_form():
-    conn = get_db()
-
-    materials = conn.execute("SELECT id, name FROM materials").fetchall()
-    movement_types = conn.execute("SELECT id, name FROM movement_types").fetchall()
-    stores = conn.execute("SELECT id, name FROM stores").fetchall()
-
-    conn.close()
+    materials = db_fetchall("SELECT id, name FROM materials")
+    movement_types = db_fetchall("SELECT id, name FROM movement_types")
+    stores = db_fetchall("SELECT id, name FROM stores")
 
     return render_template(
         "movement_add.html",
@@ -658,10 +746,9 @@ def movement_add():
     if not (store_id and material_id and movement_type_id and quantity and datetime_value):
         return "必要な項目が未入力です。", 400
 
-    conn = get_db()
-    conn.execute(
+    db_execute(
         """
-        INSERT INTO inventory_movements 
+        INSERT INTO inventory_movements
         (store_id, material_id, movement_type_id, quantity, datetime, memo)
         VALUES (?, ?, ?, ?, ?, ?)
         """,
@@ -674,8 +761,7 @@ def movement_add():
             memo,
         ),
     )
-    conn.commit()
-    conn.close()
+    db.session.commit()
 
     return redirect("/movements")
 
@@ -686,8 +772,7 @@ def movement_add():
 @app.route("/daily_reports")
 @login_required
 def daily_reports_list():
-    conn = get_db()
-    stores = conn.execute("SELECT id, name FROM stores ORDER BY id").fetchall()
+    stores = db_fetchall("SELECT id, name FROM stores ORDER BY id")
 
     selected_store_id = current_user.store_id
     store_param = request.args.get("store_id")
@@ -696,7 +781,7 @@ def daily_reports_list():
         if parsed_store_id and any(store["id"] == parsed_store_id for store in stores):
             selected_store_id = parsed_store_id
 
-    reports = conn.execute(
+    reports = db_fetchall(
         """
         SELECT dr.*, s.name AS store_name
         FROM daily_reports dr
@@ -705,8 +790,7 @@ def daily_reports_list():
         ORDER BY dr.date DESC, dr.id DESC
         """,
         (selected_store_id,),
-    ).fetchall()
-    conn.close()
+    )
 
     selected_store = next(
         (store for store in stores if store["id"] == selected_store_id), None
@@ -721,8 +805,8 @@ def daily_reports_list():
     )
 
 
-def fetch_store_stock_levels(conn, store_id):
-    rows = conn.execute(
+def fetch_store_stock_levels(store_id):
+    rows = db_fetchall(
         """
         SELECT im.material_id,
                COALESCE(
@@ -740,7 +824,7 @@ def fetch_store_stock_levels(conn, store_id):
         GROUP BY im.material_id
         """,
         (store_id,),
-    ).fetchall()
+    )
     return {row["material_id"]: row["store_stock"] for row in rows}
 
 
@@ -845,15 +929,14 @@ def build_stocktake_line_message(session, store_name, order_items):
 @app.route("/daily_reports/add", methods=["GET"])
 @login_required
 def daily_report_add_form():
-    conn = get_db()
-    stores = conn.execute("SELECT id, name FROM stores ORDER BY id").fetchall()
-    materials = conn.execute(
+    stores = db_fetchall("SELECT id, name FROM stores ORDER BY id")
+    materials = db_fetchall(
         """
         SELECT m.id, m.name, m.unit, m.minimum_stock
         FROM materials m
         ORDER BY m.name
         """
-    ).fetchall()
+    )
 
     selected_store_id = current_user.store_id
     store_param = request.args.get("store_id")
@@ -862,11 +945,11 @@ def daily_report_add_form():
         if parsed_store_id and any(store["id"] == parsed_store_id for store in stores):
             selected_store_id = parsed_store_id
 
-    store_stock = fetch_store_stock_levels(conn, selected_store_id)
-    store_minimum_rows = conn.execute(
+    store_stock = fetch_store_stock_levels(selected_store_id)
+    store_minimum_rows = db_fetchall(
         "SELECT material_id, minimum_stock FROM material_store_minimums WHERE store_id = ?",
         (selected_store_id,),
-    ).fetchall()
+    )
     store_minimums = {row["material_id"]: row["minimum_stock"] for row in store_minimum_rows}
 
     material_rows = []
@@ -900,8 +983,6 @@ def daily_report_add_form():
             }
         )
 
-    conn.close()
-
     selected_store = next(
         (store for store in stores if store["id"] == selected_store_id), None
     )
@@ -928,15 +1009,13 @@ def daily_report_add():
     if not report_date:
         return "日付が未入力です。", 400
 
-    conn = get_db()
-    stores = conn.execute("SELECT id FROM stores").fetchall()
+    stores = db_fetchall("SELECT id FROM stores")
     valid_store_ids = {store["id"] for store in stores}
 
     store_id = current_user.store_id
     if is_admin_user():
         store_id = parse_int(request.form.get("store_id")) or store_id
     if store_id not in valid_store_ids:
-        conn.close()
         return "店舗が不正です。", 400
 
     sales = parse_float(request.form.get("sales"))
@@ -946,14 +1025,14 @@ def daily_report_add():
     next_material_delivery = (request.form.get("next_material_delivery") or "").strip() or None
     remarks = (request.form.get("remarks") or "").strip() or None
 
-    existing = conn.execute(
+    existing = db_fetchone(
         "SELECT id FROM daily_reports WHERE store_id = ? AND date = ?",
         (store_id, report_date),
-    ).fetchone()
+    )
 
     if existing:
         daily_report_id = existing["id"]
-        conn.execute(
+        db_execute(
             """
             UPDATE daily_reports
             SET sales = ?, wasted_takoyaki = ?, production_sets = ?, working_hours = ?,
@@ -971,11 +1050,12 @@ def daily_report_add():
             ),
         )
     else:
-        cursor = conn.execute(
+        result = db_execute(
             """
             INSERT INTO daily_reports
             (store_id, date, sales, wasted_takoyaki, production_sets, working_hours, next_material_delivery, remarks)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            RETURNING id
             """,
             (
                 store_id,
@@ -988,9 +1068,9 @@ def daily_report_add():
                 remarks,
             ),
         )
-        daily_report_id = cursor.lastrowid
+        daily_report_id = result.scalar()
 
-    materials = conn.execute("SELECT id FROM materials").fetchall()
+    materials = db_fetchall("SELECT id FROM materials")
     material_ids = {material["id"] for material in materials}
 
     order_items = []
@@ -1005,21 +1085,21 @@ def daily_report_add():
             continue
         order_items.append((daily_report_id, material_id, quantity))
 
-    conn.execute(
+    db_execute(
         "DELETE FROM daily_report_orders WHERE daily_report_id = ?",
         (daily_report_id,),
     )
     if order_items:
-        conn.executemany(
-            """
-            INSERT INTO daily_report_orders (daily_report_id, material_id, quantity)
-            VALUES (?, ?, ?)
-            """,
-            order_items,
-        )
+        for order_item in order_items:
+            db_execute(
+                """
+                INSERT INTO daily_report_orders (daily_report_id, material_id, quantity)
+                VALUES (?, ?, ?)
+                """,
+                order_item,
+            )
 
-    conn.commit()
-    conn.close()
+    db.session.commit()
 
     return redirect(f"/daily_reports/{daily_report_id}")
 
@@ -1030,8 +1110,7 @@ def daily_report_add():
 @app.route("/daily_reports/<int:daily_report_id>")
 @login_required
 def daily_report_detail(daily_report_id):
-    conn = get_db()
-    report = conn.execute(
+    report = db_fetchone(
         """
         SELECT dr.*, s.name AS store_name
         FROM daily_reports dr
@@ -1039,16 +1118,14 @@ def daily_report_detail(daily_report_id):
         WHERE dr.id = ?
         """,
         (daily_report_id,),
-    ).fetchone()
+    )
     if not report:
-        conn.close()
         return "日報が見つかりません。", 404
 
     if not is_admin_user() and report["store_id"] != current_user.store_id:
-        conn.close()
         return "権限がありません。", 403
 
-    orders = conn.execute(
+    orders = db_fetchall(
         """
         SELECT dro.quantity, m.name AS material_name, m.unit
         FROM daily_report_orders dro
@@ -1057,10 +1134,9 @@ def daily_report_detail(daily_report_id):
         ORDER BY m.name
         """,
         (daily_report_id,),
-    ).fetchall()
+    )
 
     line_message = build_daily_report_line_message(report, report["store_name"], orders)
-    conn.close()
 
     return render_template(
         "daily_report_detail.html",
@@ -1076,8 +1152,7 @@ def daily_report_detail(daily_report_id):
 @app.route("/daily_reports/<int:daily_report_id>/edit", methods=["GET"])
 @login_required
 def daily_report_edit_form(daily_report_id):
-    conn = get_db()
-    report = conn.execute(
+    report = db_fetchone(
         """
         SELECT dr.*, s.name AS store_name
         FROM daily_reports dr
@@ -1085,25 +1160,23 @@ def daily_report_edit_form(daily_report_id):
         WHERE dr.id = ?
         """,
         (daily_report_id,),
-    ).fetchone()
+    )
     if not report:
-        conn.close()
         return "日報が見つかりません。", 404
 
     if not is_admin_user() and report["store_id"] != current_user.store_id:
-        conn.close()
         return "権限がありません。", 403
 
-    stores = conn.execute("SELECT id, name FROM stores ORDER BY id").fetchall()
-    materials = conn.execute(
+    stores = db_fetchall("SELECT id, name FROM stores ORDER BY id")
+    materials = db_fetchall(
         """
         SELECT m.id, m.name, m.unit, m.minimum_stock
         FROM materials m
         ORDER BY m.name
         """
-    ).fetchall()
+    )
 
-    orders = conn.execute(
+    orders = db_fetchall(
         """
         SELECT dro.material_id, dro.quantity, m.name AS material_name, m.unit
         FROM daily_report_orders dro
@@ -1111,14 +1184,14 @@ def daily_report_edit_form(daily_report_id):
         WHERE dro.daily_report_id = ?
         """,
         (daily_report_id,),
-    ).fetchall()
+    )
     order_quantities = {row["material_id"]: row["quantity"] for row in orders}
 
-    store_stock = fetch_store_stock_levels(conn, report["store_id"])
-    store_minimum_rows = conn.execute(
+    store_stock = fetch_store_stock_levels(report["store_id"])
+    store_minimum_rows = db_fetchall(
         "SELECT material_id, minimum_stock FROM material_store_minimums WHERE store_id = ?",
         (report["store_id"],),
-    ).fetchall()
+    )
     store_minimums = {row["material_id"]: row["minimum_stock"] for row in store_minimum_rows}
 
     material_rows = []
@@ -1153,8 +1226,6 @@ def daily_report_edit_form(daily_report_id):
             }
         )
 
-    conn.close()
-
     return render_template(
         "daily_report_edit.html",
         report=report,
@@ -1170,17 +1241,11 @@ def daily_report_edit_form(daily_report_id):
 @app.route("/daily_reports/<int:daily_report_id>/edit", methods=["POST"])
 @login_required
 def daily_report_edit(daily_report_id):
-    conn = get_db()
-    report = conn.execute(
-        "SELECT * FROM daily_reports WHERE id = ?",
-        (daily_report_id,),
-    ).fetchone()
+    report = db_fetchone("SELECT * FROM daily_reports WHERE id = ?", (daily_report_id,))
     if not report:
-        conn.close()
         return "日報が見つかりません。", 404
 
     if not is_admin_user() and report["store_id"] != current_user.store_id:
-        conn.close()
         return "権限がありません。", 403
 
     store_id = report["store_id"]
@@ -1189,18 +1254,16 @@ def daily_report_edit(daily_report_id):
 
     report_date = (request.form.get("date") or "").strip()
     if not report_date:
-        conn.close()
         return "日付が未入力です。", 400
 
-    conflict = conn.execute(
+    conflict = db_fetchone(
         """
         SELECT id FROM daily_reports
         WHERE store_id = ? AND date = ? AND id != ?
         """,
         (store_id, report_date, daily_report_id),
-    ).fetchone()
+    )
     if conflict:
-        conn.close()
         return "同じ店舗・同じ日付の日報が既に存在します。", 400
 
     sales = parse_float(request.form.get("sales"))
@@ -1210,7 +1273,7 @@ def daily_report_edit(daily_report_id):
     next_material_delivery = (request.form.get("next_material_delivery") or "").strip() or None
     remarks = (request.form.get("remarks") or "").strip() or None
 
-    conn.execute(
+    db_execute(
         """
         UPDATE daily_reports
         SET store_id = ?, date = ?, sales = ?, wasted_takoyaki = ?, production_sets = ?,
@@ -1230,7 +1293,7 @@ def daily_report_edit(daily_report_id):
         ),
     )
 
-    materials = conn.execute("SELECT id FROM materials").fetchall()
+    materials = db_fetchall("SELECT id FROM materials")
     material_ids = {material["id"] for material in materials}
 
     order_items = []
@@ -1245,21 +1308,21 @@ def daily_report_edit(daily_report_id):
             continue
         order_items.append((daily_report_id, material_id, quantity))
 
-    conn.execute(
+    db_execute(
         "DELETE FROM daily_report_orders WHERE daily_report_id = ?",
         (daily_report_id,),
     )
     if order_items:
-        conn.executemany(
-            """
-            INSERT INTO daily_report_orders (daily_report_id, material_id, quantity)
-            VALUES (?, ?, ?)
-            """,
-            order_items,
-        )
+        for order_item in order_items:
+            db_execute(
+                """
+                INSERT INTO daily_report_orders (daily_report_id, material_id, quantity)
+                VALUES (?, ?, ?)
+                """,
+                order_item,
+            )
 
-    conn.commit()
-    conn.close()
+    db.session.commit()
     return redirect(f"/daily_reports/{daily_report_id}")
 
 
@@ -1269,25 +1332,18 @@ def daily_report_edit(daily_report_id):
 @app.route("/daily_reports/<int:daily_report_id>/delete", methods=["POST"])
 @login_required
 def daily_report_delete(daily_report_id):
-    conn = get_db()
-    report = conn.execute(
-        "SELECT * FROM daily_reports WHERE id = ?",
-        (daily_report_id,),
-    ).fetchone()
+    report = db_fetchone("SELECT * FROM daily_reports WHERE id = ?", (daily_report_id,))
     if not report:
-        conn.close()
         return "日報が見つかりません。", 404
     if not is_admin_user() and report["store_id"] != current_user.store_id:
-        conn.close()
         return "権限がありません。", 403
 
-    conn.execute(
+    db_execute(
         "DELETE FROM daily_report_orders WHERE daily_report_id = ?",
         (daily_report_id,),
     )
-    conn.execute("DELETE FROM daily_reports WHERE id = ?", (daily_report_id,))
-    conn.commit()
-    conn.close()
+    db_execute("DELETE FROM daily_reports WHERE id = ?", (daily_report_id,))
+    db.session.commit()
 
     return redirect("/daily_reports")
 
@@ -1298,8 +1354,7 @@ def daily_report_delete(daily_report_id):
 @app.route("/stocktakes")
 @login_required
 def stocktake_list():
-    conn = get_db()
-    stores = conn.execute("SELECT id, name FROM stores ORDER BY id").fetchall()
+    stores = db_fetchall("SELECT id, name FROM stores ORDER BY id")
 
     selected_store_id = current_user.store_id
     store_param = request.args.get("store_id")
@@ -1308,7 +1363,7 @@ def stocktake_list():
         if parsed_store_id and any(store["id"] == parsed_store_id for store in stores):
             selected_store_id = parsed_store_id
 
-    sessions = conn.execute(
+    sessions = db_fetchall(
         """
         SELECT ss.*, s.name AS store_name
         FROM stocktake_sessions ss
@@ -1317,8 +1372,7 @@ def stocktake_list():
         ORDER BY ss.count_date DESC, ss.id DESC
         """,
         (selected_store_id,),
-    ).fetchall()
-    conn.close()
+    )
 
     selected_store = next(
         (store for store in stores if store["id"] == selected_store_id), None
@@ -1339,15 +1393,14 @@ def stocktake_list():
 @app.route("/stocktakes/add", methods=["GET"])
 @login_required
 def stocktake_add_form():
-    conn = get_db()
-    stores = conn.execute("SELECT id, name FROM stores ORDER BY id").fetchall()
-    materials = conn.execute(
+    stores = db_fetchall("SELECT id, name FROM stores ORDER BY id")
+    materials = db_fetchall(
         """
         SELECT m.id, m.name, m.unit, m.minimum_stock
         FROM materials m
         ORDER BY m.name
         """
-    ).fetchall()
+    )
 
     selected_store_id = current_user.store_id
     store_param = request.args.get("store_id")
@@ -1356,11 +1409,11 @@ def stocktake_add_form():
         if parsed_store_id and any(store["id"] == parsed_store_id for store in stores):
             selected_store_id = parsed_store_id
 
-    store_stock = fetch_store_stock_levels(conn, selected_store_id)
-    store_minimum_rows = conn.execute(
+    store_stock = fetch_store_stock_levels(selected_store_id)
+    store_minimum_rows = db_fetchall(
         "SELECT material_id, minimum_stock FROM material_store_minimums WHERE store_id = ?",
         (selected_store_id,),
-    ).fetchall()
+    )
     store_minimums = {row["material_id"]: row["minimum_stock"] for row in store_minimum_rows}
 
     material_rows = []
@@ -1392,8 +1445,6 @@ def stocktake_add_form():
                 "is_low": recommended_order > 0,
             }
         )
-
-    conn.close()
 
     selected_store = next(
         (store for store in stores if store["id"] == selected_store_id), None
@@ -1462,36 +1513,35 @@ def stocktake_add():
     else:
         count_month = None
 
-    conn = get_db()
-    stores = conn.execute("SELECT id FROM stores").fetchall()
+    stores = db_fetchall("SELECT id FROM stores")
     valid_store_ids = {store["id"] for store in stores}
 
     store_id = current_user.store_id
     if is_admin_user():
         store_id = parse_int(request.form.get("store_id")) or store_id
     if store_id not in valid_store_ids:
-        conn.close()
         return "店舗が不正です。", 400
 
     notes = (request.form.get("notes") or "").strip() or None
 
     try:
-        cursor = conn.execute(
+        result = db_execute(
             """
             INSERT INTO stocktake_sessions
             (company_id, store_id, count_date, session_type, count_month, status, notes)
             VALUES (?, ?, ?, ?, ?, ?, ?)
+            RETURNING id
             """,
             (None, store_id, count_date, session_type, count_month, "draft", notes),
         )
-        session_id = cursor.lastrowid
-    except sqlite3.IntegrityError:
-        conn.close()
+        session_id = result.scalar()
+    except IntegrityError:
+        db.session.rollback()
         if session_type == "monthly":
             return "この店舗の月次棚卸しは既に作成されています。", 400
         raise
 
-    materials = conn.execute("SELECT id FROM materials").fetchall()
+    materials = db_fetchall("SELECT id FROM materials")
     material_ids = {material["id"] for material in materials}
 
     items = []
@@ -1500,17 +1550,18 @@ def stocktake_add():
         value = request.form.get(key)
         counted = parse_float(value)
         if counted is None:
-            conn.close()
+            db.session.rollback()
             return "全ての材料の棚卸数を入力してください。", 400
         items.append((session_id, material_id, counted))
 
-    conn.executemany(
-        """
-        INSERT INTO stocktake_items (session_id, material_id, counted_quantity)
-        VALUES (?, ?, ?)
-        """,
-        items,
-    )
+    for item in items:
+        db_execute(
+            """
+            INSERT INTO stocktake_items (session_id, material_id, counted_quantity)
+            VALUES (?, ?, ?)
+            """,
+            item,
+        )
 
     order_items = []
     for key, value in request.form.items():
@@ -1525,16 +1576,16 @@ def stocktake_add():
         order_items.append((session_id, material_id, quantity))
 
     if order_items:
-        conn.executemany(
-            """
-            INSERT INTO stocktake_order_items (session_id, material_id, quantity)
-            VALUES (?, ?, ?)
-            """,
-            order_items,
-        )
+        for order_item in order_items:
+            db_execute(
+                """
+                INSERT INTO stocktake_order_items (session_id, material_id, quantity)
+                VALUES (?, ?, ?)
+                """,
+                order_item,
+            )
 
-    conn.commit()
-    conn.close()
+    db.session.commit()
 
     return redirect(f"/stocktakes/{session_id}")
 
@@ -1549,13 +1600,10 @@ def monthly_stocktakes():
     if not re.match(r"^\d{4}-\d{2}$", month):
         month = date.today().strftime("%Y-%m")
 
-    conn = get_db()
-    stores = conn.execute("SELECT id, name FROM stores ORDER BY id").fetchall()
-    materials = conn.execute(
-        "SELECT id, name, unit FROM materials ORDER BY name"
-    ).fetchall()
+    stores = db_fetchall("SELECT id, name FROM stores ORDER BY id")
+    materials = db_fetchall("SELECT id, name, unit FROM materials ORDER BY name")
 
-    sessions = conn.execute(
+    sessions = db_fetchall(
         """
         SELECT ss.*, s.name AS store_name
         FROM stocktake_sessions ss
@@ -1564,10 +1612,10 @@ def monthly_stocktakes():
         ORDER BY ss.store_id
         """,
         (month,),
-    ).fetchall()
+    )
     sessions_by_store = {row["store_id"]: row for row in sessions}
 
-    count_rows = conn.execute(
+    count_rows = db_fetchall(
         """
         SELECT ss.store_id, si.material_id, si.counted_quantity
         FROM stocktake_sessions ss
@@ -1575,14 +1623,13 @@ def monthly_stocktakes():
         WHERE ss.session_type = 'monthly' AND ss.count_month = ?
         """,
         (month,),
-    ).fetchall()
+    )
     counts = {}
     for row in count_rows:
         counts.setdefault(row["material_id"], {})[row["store_id"]] = row[
             "counted_quantity"
         ]
 
-    conn.close()
     return render_template(
         "monthly_stocktakes.html",
         month=month,
@@ -1601,8 +1648,7 @@ def monthly_stocktakes():
 @app.route("/stocktakes/<int:session_id>")
 @login_required
 def stocktake_detail(session_id):
-    conn = get_db()
-    session = conn.execute(
+    session = db_fetchone(
         """
         SELECT ss.*, s.name AS store_name
         FROM stocktake_sessions ss
@@ -1610,16 +1656,14 @@ def stocktake_detail(session_id):
         WHERE ss.id = ?
         """,
         (session_id,),
-    ).fetchone()
+    )
     if not session:
-        conn.close()
         return "棚卸が見つかりません。", 404
 
     if not is_admin_user() and session["store_id"] != current_user.store_id:
-        conn.close()
         return "権限がありません。", 403
 
-    items = conn.execute(
+    items = db_fetchall(
         """
         SELECT si.counted_quantity, m.name AS material_name, m.unit, m.id AS material_id
         FROM stocktake_items si
@@ -1628,9 +1672,9 @@ def stocktake_detail(session_id):
         ORDER BY m.name
         """,
         (session_id,),
-    ).fetchall()
+    )
 
-    order_items = conn.execute(
+    order_items = db_fetchall(
         """
         SELECT soi.quantity, m.name AS material_name, m.unit, m.id AS material_id
         FROM stocktake_order_items soi
@@ -1639,13 +1683,11 @@ def stocktake_detail(session_id):
         ORDER BY m.name
         """,
         (session_id,),
-    ).fetchall()
+    )
 
     line_message = build_stocktake_line_message(
         session, session["store_name"], order_items
     )
-    conn.close()
-
     return render_template(
         "stocktake_detail.html",
         session=session,
@@ -1661,8 +1703,7 @@ def stocktake_detail(session_id):
 @app.route("/stocktakes/<int:session_id>/edit", methods=["GET"])
 @login_required
 def stocktake_edit_form(session_id):
-    conn = get_db()
-    session = conn.execute(
+    session = db_fetchone(
         """
         SELECT ss.*, s.name AS store_name
         FROM stocktake_sessions ss
@@ -1670,51 +1711,48 @@ def stocktake_edit_form(session_id):
         WHERE ss.id = ?
         """,
         (session_id,),
-    ).fetchone()
+    )
     if not session:
-        conn.close()
         return "棚卸が見つかりません。", 404
     if not is_admin_user() and session["store_id"] != current_user.store_id:
-        conn.close()
         return "権限がありません。", 403
     if session["status"] == "confirmed":
-        conn.close()
         return "確定済みの棚卸は編集できません。", 403
 
-    stores = conn.execute("SELECT id, name FROM stores ORDER BY id").fetchall()
-    materials = conn.execute(
+    stores = db_fetchall("SELECT id, name FROM stores ORDER BY id")
+    materials = db_fetchall(
         """
         SELECT m.id, m.name, m.unit, m.minimum_stock
         FROM materials m
         ORDER BY m.name
         """
-    ).fetchall()
+    )
 
-    item_rows = conn.execute(
+    item_rows = db_fetchall(
         """
         SELECT material_id, counted_quantity
         FROM stocktake_items
         WHERE session_id = ?
         """,
         (session_id,),
-    ).fetchall()
+    )
     counted_map = {row["material_id"]: row["counted_quantity"] for row in item_rows}
 
-    order_rows = conn.execute(
+    order_rows = db_fetchall(
         """
         SELECT material_id, quantity
         FROM stocktake_order_items
         WHERE session_id = ?
         """,
         (session_id,),
-    ).fetchall()
+    )
     order_map = {row["material_id"]: row["quantity"] for row in order_rows}
 
-    store_stock = fetch_store_stock_levels(conn, session["store_id"])
-    store_minimum_rows = conn.execute(
+    store_stock = fetch_store_stock_levels(session["store_id"])
+    store_minimum_rows = db_fetchall(
         "SELECT material_id, minimum_stock FROM material_store_minimums WHERE store_id = ?",
         (session["store_id"],),
-    ).fetchall()
+    )
     store_minimums = {row["material_id"]: row["minimum_stock"] for row in store_minimum_rows}
 
     material_rows = []
@@ -1748,7 +1786,6 @@ def stocktake_edit_form(session_id):
             }
         )
 
-    conn.close()
     return render_template(
         "stocktake_edit.html",
         session=session,
@@ -1764,19 +1801,12 @@ def stocktake_edit_form(session_id):
 @app.route("/stocktakes/<int:session_id>/edit", methods=["POST"])
 @login_required
 def stocktake_edit(session_id):
-    conn = get_db()
-    session = conn.execute(
-        "SELECT * FROM stocktake_sessions WHERE id = ?",
-        (session_id,),
-    ).fetchone()
+    session = db_fetchone("SELECT * FROM stocktake_sessions WHERE id = ?", (session_id,))
     if not session:
-        conn.close()
         return "棚卸が見つかりません。", 404
     if not is_admin_user() and session["store_id"] != current_user.store_id:
-        conn.close()
         return "権限がありません。", 403
     if session["status"] == "confirmed":
-        conn.close()
         return "確定済みの棚卸は編集できません。", 403
 
     store_id = session["store_id"]
@@ -1785,7 +1815,6 @@ def stocktake_edit(session_id):
 
     count_date = (request.form.get("date") or "").strip()
     if not count_date:
-        conn.close()
         return "棚卸日が未入力です。", 400
 
     notes = (request.form.get("notes") or "").strip() or None
@@ -1795,11 +1824,10 @@ def stocktake_edit(session_id):
     if session_type == "monthly":
         count_month = count_date[:7]
         if not re.match(r"^\d{4}-\d{2}$", count_month):
-            conn.close()
             return "月次棚卸しの棚卸日が不正です。", 400
 
     try:
-        conn.execute(
+        db_execute(
             """
             UPDATE stocktake_sessions
             SET store_id = ?, count_date = ?, count_month = ?, notes = ?
@@ -1807,13 +1835,13 @@ def stocktake_edit(session_id):
             """,
             (store_id, count_date, count_month, notes, session_id),
         )
-    except sqlite3.IntegrityError:
-        conn.close()
+    except IntegrityError:
+        db.session.rollback()
         if session_type == "monthly":
             return "この店舗の月次棚卸しは既に作成されています。", 400
         raise
 
-    materials = conn.execute("SELECT id FROM materials").fetchall()
+    materials = db_fetchall("SELECT id FROM materials")
     material_ids = {material["id"] for material in materials}
 
     items = []
@@ -1822,18 +1850,19 @@ def stocktake_edit(session_id):
         value = request.form.get(key)
         counted = parse_float(value)
         if counted is None:
-            conn.close()
+            db.session.rollback()
             return "全ての材料の棚卸数を入力してください。", 400
         items.append((session_id, material_id, counted))
 
-    conn.execute("DELETE FROM stocktake_items WHERE session_id = ?", (session_id,))
-    conn.executemany(
-        """
-        INSERT INTO stocktake_items (session_id, material_id, counted_quantity)
-        VALUES (?, ?, ?)
-        """,
-        items,
-    )
+    db_execute("DELETE FROM stocktake_items WHERE session_id = ?", (session_id,))
+    for item in items:
+        db_execute(
+            """
+            INSERT INTO stocktake_items (session_id, material_id, counted_quantity)
+            VALUES (?, ?, ?)
+            """,
+            item,
+        )
 
     order_items = []
     for key, value in request.form.items():
@@ -1847,21 +1876,21 @@ def stocktake_edit(session_id):
             continue
         order_items.append((session_id, material_id, quantity))
 
-    conn.execute(
+    db_execute(
         "DELETE FROM stocktake_order_items WHERE session_id = ?",
         (session_id,),
     )
     if order_items:
-        conn.executemany(
-            """
-            INSERT INTO stocktake_order_items (session_id, material_id, quantity)
-            VALUES (?, ?, ?)
-            """,
-            order_items,
-        )
+        for order_item in order_items:
+            db_execute(
+                """
+                INSERT INTO stocktake_order_items (session_id, material_id, quantity)
+                VALUES (?, ?, ?)
+                """,
+                order_item,
+            )
 
-    conn.commit()
-    conn.close()
+    db.session.commit()
     return redirect(f"/stocktakes/{session_id}")
 
 
@@ -1871,26 +1900,18 @@ def stocktake_edit(session_id):
 @app.route("/stocktakes/<int:session_id>/delete", methods=["POST"])
 @login_required
 def stocktake_delete(session_id):
-    conn = get_db()
-    session = conn.execute(
-        "SELECT * FROM stocktake_sessions WHERE id = ?",
-        (session_id,),
-    ).fetchone()
+    session = db_fetchone("SELECT * FROM stocktake_sessions WHERE id = ?", (session_id,))
     if not session:
-        conn.close()
         return "棚卸が見つかりません。", 404
     if not is_admin_user() and session["store_id"] != current_user.store_id:
-        conn.close()
         return "権限がありません。", 403
     if session["status"] == "confirmed":
-        conn.close()
         return "確定済みの棚卸は削除できません。", 403
 
-    conn.execute("DELETE FROM stocktake_order_items WHERE session_id = ?", (session_id,))
-    conn.execute("DELETE FROM stocktake_items WHERE session_id = ?", (session_id,))
-    conn.execute("DELETE FROM stocktake_sessions WHERE id = ?", (session_id,))
-    conn.commit()
-    conn.close()
+    db_execute("DELETE FROM stocktake_order_items WHERE session_id = ?", (session_id,))
+    db_execute("DELETE FROM stocktake_items WHERE session_id = ?", (session_id,))
+    db_execute("DELETE FROM stocktake_sessions WHERE id = ?", (session_id,))
+    db.session.commit()
 
     return redirect("/stocktakes")
 
@@ -1901,22 +1922,15 @@ def stocktake_delete(session_id):
 @app.route("/stocktakes/<int:session_id>/confirm", methods=["POST"])
 @login_required
 def stocktake_confirm(session_id):
-    conn = get_db()
-    session = conn.execute(
-        "SELECT * FROM stocktake_sessions WHERE id = ?",
-        (session_id,),
-    ).fetchone()
+    session = db_fetchone("SELECT * FROM stocktake_sessions WHERE id = ?", (session_id,))
     if not session:
-        conn.close()
         return "棚卸が見つかりません。", 404
     if not is_admin_user() and session["store_id"] != current_user.store_id:
-        conn.close()
         return "権限がありません。", 403
     if session["status"] == "confirmed":
-        conn.close()
         return redirect(f"/stocktakes/{session_id}")
 
-    items = conn.execute(
+    items = db_fetchall(
         """
         SELECT si.material_id, si.counted_quantity, m.name AS material_name
         FROM stocktake_items si
@@ -1924,15 +1938,14 @@ def stocktake_confirm(session_id):
         WHERE si.session_id = ?
         """,
         (session_id,),
-    ).fetchall()
+    )
 
-    system_stock = fetch_store_stock_levels(conn, session["store_id"])
-    movement_type = conn.execute(
+    system_stock = fetch_store_stock_levels(session["store_id"])
+    movement_type = db_fetchone(
         "SELECT id FROM movement_types WHERE name = '棚卸調整'"
-    ).fetchone()
+    )
     movement_type_id = movement_type["id"] if movement_type else None
     if not movement_type_id:
-        conn.close()
         return "棚卸調整の入出庫種別が見つかりません。", 500
 
     adjustments = []
@@ -1956,25 +1969,25 @@ def stocktake_confirm(session_id):
         )
 
     if adjustments:
-        conn.executemany(
-            """
-            INSERT INTO inventory_movements
-            (store_id, material_id, movement_type_id, quantity, datetime, memo)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            adjustments,
-        )
+        for adjustment in adjustments:
+            db_execute(
+                """
+                INSERT INTO inventory_movements
+                (store_id, material_id, movement_type_id, quantity, datetime, memo)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                adjustment,
+            )
 
-    conn.execute(
+    db_execute(
         """
         UPDATE stocktake_sessions
-        SET status = 'confirmed', confirmed_at = datetime('now')
+        SET status = 'confirmed', confirmed_at = CURRENT_TIMESTAMP
         WHERE id = ?
         """,
         (session_id,),
     )
-    conn.commit()
-    conn.close()
+    db.session.commit()
 
     return redirect(f"/stocktakes/{session_id}")
 
@@ -1985,21 +1998,17 @@ def stocktake_confirm(session_id):
 @app.route("/movements/<int:movement_id>/edit", methods=["GET"])
 @login_required
 def edit_movement_form(movement_id):
-    conn = get_db()
-
-    movement = conn.execute(
+    movement = db_fetchone(
         """
         SELECT * FROM inventory_movements
         WHERE id = ?
         """,
         (movement_id,),
-    ).fetchone()
+    )
 
-    materials = conn.execute("SELECT id, name FROM materials").fetchall()
-    movement_types = conn.execute("SELECT id, name FROM movement_types").fetchall()
-    stores = conn.execute("SELECT id, name FROM stores").fetchall()
-
-    conn.close()
+    materials = db_fetchall("SELECT id, name FROM materials")
+    movement_types = db_fetchall("SELECT id, name FROM movement_types")
+    stores = db_fetchall("SELECT id, name FROM stores")
 
     return render_template(
         "edit_movement.html",
@@ -2023,8 +2032,7 @@ def edit_movement(movement_id):
     datetime_value = request.form["datetime"]
     memo = request.form.get("memo", "")
 
-    conn = get_db()
-    conn.execute(
+    db_execute(
         """
         UPDATE inventory_movements
         SET store_id = ?, material_id = ?, movement_type_id = ?, 
@@ -2041,8 +2049,7 @@ def edit_movement(movement_id):
             movement_id,
         ),
     )
-    conn.commit()
-    conn.close()
+    db.session.commit()
 
     return redirect("/movements")
 
@@ -2053,10 +2060,8 @@ def edit_movement(movement_id):
 @app.route("/movements/<int:movement_id>/delete", methods=["POST"])
 @login_required
 def delete_movement(movement_id):
-    conn = get_db()
-    conn.execute("DELETE FROM inventory_movements WHERE id = ?", (movement_id,))
-    conn.commit()
-    conn.close()
+    db_execute("DELETE FROM inventory_movements WHERE id = ?", (movement_id,))
+    db.session.commit()
 
     return redirect("/movements")
 
