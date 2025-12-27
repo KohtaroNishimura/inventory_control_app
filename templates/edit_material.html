@@ -1,35 +1,35 @@
 {% extends "base.html" %}
-{% block title %}材料の追加{% endblock %}
+{% block title %}材料の編集{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
     <div class="rounded-3xl bg-white px-6 py-8 shadow-lg ring-1 ring-slate-100 sm:px-10">
-        <div class="space-y-2 text-center sm:text-left">
-            <p class="text-sm font-semibold text-brand">新規材料</p>
-            <h1 class="text-3xl font-bold text-slate-900">材料の追加</h1>
-            <p class="text-sm text-slate-500">最低在庫量まで入力するとアラート表示がより見やすくなります。</p>
+        <div class="space-y-1 text-center sm:text-left">
+            <p class="text-sm font-semibold text-brand">材料ID：{{ material.id }}</p>
+            <h1 class="text-3xl font-bold text-slate-900">材料の編集</h1>
+            <p class="text-sm text-slate-500">データを更新すると在庫状況に即時反映されます。</p>
         </div>
 
-        <form action="/materials/add" method="POST" class="mt-8 space-y-5">
+        <form action="/materials/{{ material.id }}/edit" method="POST" class="mt-8 space-y-5">
             <div class="space-y-2">
                 <label class="text-sm font-semibold text-slate-700">材料名</label>
-                <input type="text" name="name" required class="rounded-2xl border-slate-300 text-base focus:border-brand focus:ring-brand">
+                <input type="text" name="name" value="{{ material.name }}" required class="rounded-2xl border-slate-300 text-base focus:border-brand focus:ring-brand">
             </div>
 
             <div class="grid gap-5 sm:grid-cols-2">
                 <div class="space-y-2">
                     <label class="text-sm font-semibold text-slate-700">単位</label>
-                    <input type="text" name="unit" class="rounded-2xl border-slate-300 text-base focus:border-brand focus:ring-brand">
+                    <input type="text" name="unit" value="{{ material.unit }}" class="rounded-2xl border-slate-300 text-base focus:border-brand focus:ring-brand">
                 </div>
                 <div class="space-y-2">
                     <label class="text-sm font-semibold text-slate-700">単価</label>
-                    <input type="number" step="0.01" name="price" class="rounded-2xl border-slate-300 text-base focus:border-brand focus:ring-brand">
+                    <input type="number" step="0.01" name="price" value="{{ material.price_per_unit }}" class="rounded-2xl border-slate-300 text-base focus:border-brand focus:ring-brand">
                 </div>
             </div>
 
             <div class="space-y-2">
                 <label class="text-sm font-semibold text-slate-700">全店舗合計の最低在庫量</label>
-                <input type="number" step="0.01" name="minimum_stock" class="rounded-2xl border-slate-300 text-base focus:border-brand focus:ring-brand">
+                <input type="number" step="0.01" name="minimum_stock" value="{{ material.minimum_stock }}" class="rounded-2xl border-slate-300 text-base focus:border-brand focus:ring-brand">
             </div>
 
             {% if stores %}
@@ -42,7 +42,11 @@
                     {% for store in stores %}
                     <div class="rounded-2xl border border-slate-100 bg-white/60 p-3 shadow-sm">
                         <p class="text-sm font-semibold text-slate-700">{{ store.name }}</p>
-                        <input type="number" step="0.01" name="minimum_stock_store_{{ store.id }}" class="mt-2 rounded-xl border-slate-300 text-base focus:border-brand focus:ring-brand">
+                        <input type="number"
+                               step="0.01"
+                               name="minimum_stock_store_{{ store.id }}"
+                               value="{{ store_minimums.get(store.id, '') }}"
+                               class="mt-2 rounded-xl border-slate-300 text-base focus:border-brand focus:ring-brand">
                     </div>
                     {% endfor %}
                 </div>
@@ -52,21 +56,23 @@
             <div class="space-y-2">
                 <label class="text-sm font-semibold text-slate-700">カテゴリ</label>
                 <select name="category_id" class="rounded-2xl border-slate-300 text-base focus:border-brand focus:ring-brand">
-                    <option value="">選択してください</option>
+                    <option value="">未選択</option>
                     {% for c in categories %}
-                        <option value="{{ c.id }}">{{ c.category_name }}</option>
+                        <option value="{{ c.id }}" {% if material.category_id == c.id %}selected{% endif %}>
+                            {{ c.category_name }}
+                        </option>
                     {% endfor %}
                 </select>
             </div>
 
             <div class="space-y-2">
                 <label class="text-sm font-semibold text-slate-700">メモ</label>
-                <textarea name="memo" rows="4" class="rounded-2xl border-slate-300 text-base focus:border-brand focus:ring-brand"></textarea>
+                <textarea name="memo" rows="4" class="rounded-2xl border-slate-300 text-base focus:border-brand focus:ring-brand">{{ material.memo }}</textarea>
             </div>
 
             <div class="flex flex-col gap-3 sm:flex-row sm:justify-end">
                 <button type="submit" class="inline-flex items-center justify-center rounded-2xl bg-brand px-6 py-3 text-base font-semibold text-white shadow-lg transition hover:bg-brandDark focus-visible:outline focus-visible:ring-2 focus-visible:ring-brand/50">
-                    登録する
+                    更新する
                 </button>
             </div>
         </form>
@@ -74,7 +80,7 @@
 
     <div class="text-center">
         <a href="/materials" class="inline-flex items-center justify-center rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900">
-            材料一覧に戻る
+            材料一覧へ戻る
         </a>
     </div>
 </div>

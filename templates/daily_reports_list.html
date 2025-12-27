@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}日報一覧{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="rounded-3xl bg-white px-6 py-8 shadow-xl ring-1 ring-slate-100 sm:px-10">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div class="space-y-1">
+                <p class="text-sm font-semibold uppercase tracking-wide text-brand">日報</p>
+                <h1 class="text-2xl font-bold text-slate-900 sm:text-3xl">日報一覧</h1>
+                {% if selected_store %}
+                <p class="text-sm text-slate-600">店舗: {{ selected_store.name }}</p>
+                {% endif %}
+            </div>
+
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                {% if is_admin %}
+                <form method="get" action="/daily_reports" class="flex items-center gap-2">
+                    <label class="text-sm font-semibold text-slate-700" for="store_id">店舗</label>
+                    <select id="store_id" name="store_id" class="rounded-xl border-slate-200 bg-white text-sm" onchange="this.form.submit()">
+                        {% for store in stores %}
+                        <option value="{{ store.id }}" {% if store.id == selected_store_id %}selected{% endif %}>{{ store.name }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+                {% endif %}
+
+                <a href="/daily_reports/add?store_id={{ selected_store_id }}" class="inline-flex items-center justify-center rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brandDark">
+                    ➕ 日報作成
+                </a>
+            </div>
+        </div>
+
+        <div class="mt-8 overflow-hidden rounded-2xl border border-slate-100">
+            <table class="min-w-full divide-y divide-slate-100 bg-white">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">日付</th>
+                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">売上</th>
+                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">販売セット</th>
+                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">営業時間</th>
+                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">操作</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for report in reports %}
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-5 py-3 text-sm font-semibold text-slate-900">
+                            <a href="/daily_reports/{{ report.id }}" class="underline decoration-slate-200 underline-offset-4 hover:decoration-brand">
+                                {{ report.date }}
+                            </a>
+                        </td>
+                        <td class="px-5 py-3 text-sm text-slate-700">
+                            {% if report.sales is not none %}{{ "{:,.0f}".format(report.sales) }}円{% else %}—{% endif %}
+                        </td>
+                        <td class="px-5 py-3 text-sm text-slate-700">
+                            {% if report.production_sets is not none %}{{ "{:g}".format(report.production_sets) }}{% else %}—{% endif %}
+                        </td>
+                        <td class="px-5 py-3 text-sm text-slate-700">
+                            {% if report.working_hours is not none %}{{ report.working_hours }}h{% else %}—{% endif %}
+                        </td>
+                        <td class="px-5 py-3 text-sm">
+                            <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                <a href="/daily_reports/{{ report.id }}/edit" class="text-brand hover:underline">編集</a>
+                                <form method="post" action="/daily_reports/{{ report.id }}/delete" onsubmit="return confirm('削除しますか？');">
+                                    <button type="submit" class="text-rose-500 hover:underline">削除</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="px-5 py-10 text-center text-sm text-slate-500">
+                            まだ日報がありません。
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <a href="/" class="inline-flex items-center justify-center rounded-full border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900">
+                ← ホームへ
+            </a>
+            <a href="/logout" class="inline-flex items-center justify-center rounded-full border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900">
+                🚪 ログアウト
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

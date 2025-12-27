@@ -1,0 +1,2 @@
+id,name,email,password_hash,role,store_id
+2,"管理者",admin@example.com,scrypt:32768:8:1$kZAyKUjrR2Zirpr0$3bd0dc343bc83aa6aecced75eea73bad53a85996f7a1d9d89e9383b2039d78e156de4fec9174668f891ac35023c0d0563998532fc409da5a886d096d8ea3e872,admin,1

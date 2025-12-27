@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}入出庫登録{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="rounded-3xl bg-white px-6 py-8 shadow-lg ring-1 ring-slate-100 sm:px-10">
+        <div class="space-y-2 text-center sm:text-left">
+            <p class="text-sm font-semibold text-brand">新規入出庫</p>
+            <h1 class="text-3xl font-bold text-slate-900">入出庫登録</h1>
+            <p class="text-sm text-slate-500">納品・移動・廃棄などの動きを記録しましょう。</p>
+        </div>
+
+        <form action="/movements/add" method="POST" class="mt-8 space-y-5">
+            <div class="space-y-2">
+                <label class="text-sm font-semibold text-slate-700">店舗</label>
+                <select name="store_id" required class="rounded-2xl border-slate-300 text-base focus:border-brand focus:ring-brand">
+                    {% for s in stores %}
+                        <option value="{{ s.id }}">{{ s.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="space-y-2">
+                <label class="text-sm font-semibold text-slate-700">材料</label>
+                <select name="material_id" required class="rounded-2xl border-slate-300 text-base focus:border-brand focus:ring-brand">
+                    {% for m in materials %}
+                        <option value="{{ m.id }}">{{ m.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="space-y-2">
+                <label class="text-sm font-semibold text-slate-700">動きの種類</label>
+                <select name="movement_type_id" required class="rounded-2xl border-slate-300 text-base focus:border-brand focus:ring-brand">
+                    {% for mt in movement_types %}
+                        <option value="{{ mt.id }}">{{ mt.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="grid gap-5 sm:grid-cols-2">
+                <div class="space-y-2">
+                    <label class="text-sm font-semibold text-slate-700">数量</label>
+                    <input type="number" step="0.01" name="quantity" required class="rounded-2xl border-slate-300 text-base focus:border-brand focus:ring-brand">
+                </div>
+                <div class="space-y-2">
+                    <label class="text-sm font-semibold text-slate-700">日時</label>
+                    <input type="datetime-local" name="datetime" required class="rounded-2xl border-slate-300 text-base focus:border-brand focus:ring-brand">
+                </div>
+            </div>
+
+            <div class="space-y-2">
+                <label class="text-sm font-semibold text-slate-700">メモ</label>
+                <textarea name="memo" rows="3" class="rounded-2xl border-slate-300 text-base focus:border-brand focus:ring-brand"></textarea>
+            </div>
+
+            <div class="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <button type="submit" class="inline-flex items-center justify-center rounded-2xl bg-brand px-6 py-3 text-base font-semibold text-white shadow-lg transition hover:bg-brandDark focus-visible:outline focus-visible:ring-2 focus-visible:ring-brand/50">
+                    登録する
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div class="text-center">
+        <a href="/movements" class="inline-flex items-center justify-center rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900">
+            入出庫一覧へ戻る
+        </a>
+    </div>
+</div>
+{% endblock %}

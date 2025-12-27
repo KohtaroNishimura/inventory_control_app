@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}棚卸作成{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="rounded-3xl bg-white px-6 py-8 shadow-xl ring-1 ring-slate-100 sm:px-10">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div class="space-y-1">
+                <p class="text-sm font-semibold uppercase tracking-wide text-brand">棚卸</p>
+                <h1 class="text-2xl font-bold text-slate-900 sm:text-3xl">棚卸作成</h1>
+                {% if session_type == "monthly" %}
+                <p class="text-sm text-slate-600">種別: 月次棚卸し（{{ count_month }}）</p>
+                {% endif %}
+                {% if selected_store %}
+                <p class="text-sm text-slate-600">店舗: {{ selected_store.name }}</p>
+                {% endif %}
+            </div>
+
+            <div class="flex gap-3">
+                <a href="/stocktakes?store_id={{ selected_store_id }}" class="inline-flex items-center justify-center rounded-full border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900">
+                    ← 棚卸一覧へ
+                </a>
+            </div>
+        </div>
+
+        <form method="post" action="/stocktakes/add" class="mt-8 space-y-8">
+            <input type="hidden" name="session_type" value="{{ session_type }}">
+            <input type="hidden" name="count_month" value="{{ count_month }}">
+            {% if is_admin %}
+            <div class="grid gap-4 sm:grid-cols-2">
+                <label class="block">
+                    <span class="text-sm font-semibold text-slate-700">店舗</span>
+                    <select name="store_id" class="mt-1 w-full rounded-2xl border-slate-200 bg-white">
+                        {% for store in stores %}
+                        <option value="{{ store.id }}" {% if store.id == selected_store_id %}selected{% endif %}>{{ store.name }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+            </div>
+            {% endif %}
+
+            <div class="grid gap-4 sm:grid-cols-2">
+                <label class="block">
+                    <span class="text-sm font-semibold text-slate-700">棚卸日</span>
+                    <input type="date" name="date" value="{{ default_date }}" class="mt-1 w-full rounded-2xl border-slate-200 bg-white" required>
+                </label>
+                <label class="block">
+                    <span class="text-sm font-semibold text-slate-700">備考</span>
+                    <input type="text" name="notes" class="mt-1 w-full rounded-2xl border-slate-200 bg-white" placeholder="例: 週次棚卸">
+                </label>
+            </div>
+
+            <div class="rounded-2xl border border-slate-100 bg-slate-50 p-5">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                    <div class="space-y-1">
+                        <h2 class="text-base font-bold text-slate-900">棚卸入力</h2>
+                        <p class="text-sm text-slate-600">全材料の実在庫を入力してください。</p>
+                    </div>
+                </div>
+
+                <div class="mt-4 overflow-hidden rounded-2xl border border-slate-100 bg-white">
+                    <table class="min-w-full divide-y divide-slate-100">
+                        <thead class="bg-white">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">材料</th>
+                                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">システム在庫</th>
+                                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">最低量</th>
+                                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">棚卸数</th>
+                                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">発注</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            {% for material in material_rows %}
+                            <tr class="{% if material.is_low %}bg-amber-50{% endif %}">
+                                <td class="px-4 py-3 text-sm font-semibold text-slate-900">
+                                    {{ material.name }}
+                                    <span class="ml-1 text-xs font-normal text-slate-500">({{ material.unit }})</span>
+                                </td>
+                                <td class="px-4 py-3 text-right text-sm text-slate-700">{{ material.system_stock }}</td>
+                                <td class="px-4 py-3 text-right text-sm text-slate-700">
+                                    {% if material.minimum is not none %}{{ material.minimum }}{% else %}—{% endif %}
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <input
+                                        type="number"
+                                        name="count_qty_{{ material.id }}"
+                                        min="0"
+                                        step="0.1"
+                                        inputmode="decimal"
+                                        value="{{ "{:g}".format(material.system_stock) }}"
+                                        class="w-28 rounded-xl border-slate-200 bg-white text-right text-sm"
+                                        required
+                                    >
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <input
+                                        type="number"
+                                        name="order_qty_{{ material.id }}"
+                                        min="0"
+                                        step="1"
+                                        inputmode="numeric"
+                                        value="{% if material.recommended_order > 0 %}{{ "{:g}".format(material.recommended_order) }}{% endif %}"
+                                        class="w-28 rounded-xl border-slate-200 bg-white text-right text-sm"
+                                        placeholder="0"
+                                    >
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <button type="submit" class="inline-flex items-center justify-center rounded-full bg-brand px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-brandDark">
+                    ✅ 棚卸を保存
+                </button>
+                <a href="/stocktakes?store_id={{ selected_store_id }}" class="inline-flex items-center justify-center rounded-full border border-slate-200 px-6 py-3 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900">
+                    キャンセル
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

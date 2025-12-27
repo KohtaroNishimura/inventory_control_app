@@ -1,0 +1,21 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+venv/
+
+# Local environment & secrets
+.env
+*.env
+
+# OS artifacts
+.DS_Store
+
+# Flask instance data (SQLite DBなど)
+instance/
+*.db
+*.sqlite3
+
+# Tooling
+pip-log.txt
