@@ -71,7 +71,7 @@
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             {% for material in material_rows %}
-                            <tr class="{% if material.is_low %}bg-amber-50{% endif %}">
+                            <tr class="{% if material.is_low %}bg-amber-50{% endif %}" {% if material.minimum is not none %}data-minimum="{{ material.minimum }}"{% endif %}>
                                 <td class="px-4 py-3 text-sm font-semibold text-slate-900">
                                     {{ material.name }}
                                     <span class="ml-1 text-xs font-normal text-slate-500">({{ material.unit }})</span>
@@ -88,7 +88,7 @@
                                         step="0.1"
                                         inputmode="decimal"
                                         value="{{ "{:g}".format(material.system_stock) }}"
-                                        class="w-28 rounded-xl border-slate-200 bg-white text-right text-sm"
+                                        class="js-count w-28 rounded-xl border-slate-200 bg-white text-right text-sm"
                                         required
                                     >
                                 </td>
@@ -100,7 +100,7 @@
                                         step="1"
                                         inputmode="numeric"
                                         value="{% if material.recommended_order > 0 %}{{ "{:g}".format(material.recommended_order) }}{% endif %}"
-                                        class="w-28 rounded-xl border-slate-200 bg-white text-right text-sm"
+                                        class="js-order w-28 rounded-xl border-slate-200 bg-white text-right text-sm"
                                         placeholder="0"
                                     >
                                 </td>
@@ -122,4 +122,41 @@
         </form>
     </div>
 </div>
+
+<script>
+    (function () {
+        function recalc(row) {
+            const minRaw = row.dataset.minimum;
+            if (!minRaw) return;
+            const minimum = Number.parseFloat(minRaw);
+            if (!Number.isFinite(minimum)) return;
+
+            const countInput = row.querySelector('.js-count');
+            const orderInput = row.querySelector('.js-order');
+            if (!countInput || !orderInput) return;
+            if (orderInput.dataset.manual === '1') return;
+
+            const counted = Number.parseFloat(countInput.value);
+            if (!Number.isFinite(counted)) {
+                orderInput.value = '';
+                return;
+            }
+            const diff = minimum - counted;
+            orderInput.value = diff > 0 ? String(Math.ceil(diff)) : '';
+        }
+
+        document.querySelectorAll('tr[data-minimum]').forEach((row) => {
+            const countInput = row.querySelector('.js-count');
+            const orderInput = row.querySelector('.js-order');
+            if (orderInput) {
+                orderInput.addEventListener('input', () => {
+                    orderInput.dataset.manual = '1';
+                });
+            }
+            if (countInput) {
+                countInput.addEventListener('input', () => recalc(row));
+            }
+        });
+    })();
+</script>
 {% endblock %}
